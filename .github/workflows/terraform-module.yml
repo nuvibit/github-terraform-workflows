@@ -1,0 +1,290 @@
+name: TERRAFORM MODULE
+
+on:
+  workflow_call:
+    inputs:
+      tfe_hostname:
+        description: 'Hostname for terraform cloud or enterprise'
+        default: 'app.terraform.io'
+        required: false
+        type: string
+      terraform_version:
+        description: 'Terraform version used for Terratest'
+        default: 'latest'
+        required: false
+        type: string
+      tflint_repo:
+        description: 'Public repo where tflint config is stored'
+        default: 'nuvibit/github-tflint-config'
+        required: false
+        type: string
+      tflint_repo_config_path:
+        description: 'Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl")'
+        default: ''
+        required: false
+        type: string
+      tflint_repo_ref:
+        description: 'Ref or branch of tflint_repo'
+        default: 'main'
+        required: false
+        type: string
+      commit_user:
+        description: 'Username which should be used for commits by github action'
+        default: 'github-actions'
+        required: false
+        type: string
+      commit_email:
+        description: 'Email which should be used for commits by github action'
+        default: 'noreply@github.com'
+        required: false
+        type: string
+    secrets:
+      GHE_API_TOKEN:
+        required: true
+      TFE_API_TOKEN:
+        required: true
+      TERRATEST_AWS_DEFAULT_REGION:
+        required: false
+      TERRATEST_AWS_ACCESS_KEY_ID:
+        required: false
+      TERRATEST_AWS_SECRET_ACCESS_KEY:
+        required: false
+      TERRATEST_ARM_SUBSCRIPTION_ID:
+        required: false
+      TERRATEST_ARM_TENANT_ID:
+        required: false
+      TERRATEST_ARM_CLIENT_ID:
+        required: false
+      TERRATEST_ARM_CLIENT_SECRET:
+        required: false
+
+jobs:
+  terraform-fmt:
+    runs-on: ubuntu-latest
+    outputs:
+      fmt_status: ${{ steps.fmt.outcome }}
+      diff_exists: ${{ steps.fmt_commit.outputs.diff }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Run Terraform Format
+        id: fmt
+        uses: dflook/terraform-fmt@v1
+        with:
+          path: ./
+
+      - name: Commit Changes
+        id: fmt_commit
+        run: |
+          git config --local user.name "${{ inputs.commit_user }}"
+          git config --local user.email "${{ inputs.commit_email }}"
+          if [[ -z $(git status -s) ]]
+          then
+            echo "::set-output name=diff::false"
+          else
+            echo "::set-output name=diff::true"
+          fi
+          git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
+
+      - name: Push Changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.event.pull_request.head.ref }}
+
+  terraform-docs:
+    needs: [terraform-fmt]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      docs_status: ${{ steps.docs.outcome }}
+      diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Run Terraform Docs
+        id: docs
+        uses: terraform-docs/gh-actions@v1.0.0
+        with:
+          working-dir: .
+          recursive: true
+          recursive-path: modules
+          output-file: README.md
+          output-method: inject
+          args: --sort-by required
+          git-push: true
+          git-push-user-name: ${{ inputs.commit_user }}
+          git-push-user-email: ${{ inputs.commit_email }}
+          git-commit-message: "docs(terraform-docs): update readme"
+
+  terraform-lint:
+    needs: [terraform-fmt, terraform-docs]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      lint_status: ${{ steps.lint.outcome }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Get TFLint Config
+        uses: terraform-linters/tflint-load-config-action@v0
+        if: ${{ inputs.tflint_repo_config_path != '' }}
+        with:
+          source-repo: ${{ inputs.tflint_repo }}
+          source-path: ${{ inputs.tflint_repo_config_path }}
+          source-ref: ${{ inputs.tflint_repo_ref }}
+
+      - name: Run TFLint
+        uses: reviewdog/action-tflint@v1
+        id: lint
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-check
+          fail_on_error: "true"
+          filter_mode: added
+          level: error
+          flags: ""
+          tflint_init: "true"
+
+  terraform-security:
+    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      security_status: ${{ steps.security.outcome }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
+      
+      - name: Run TFSec
+        uses: reviewdog/action-tfsec@v1
+        id: security
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-check
+          fail_on_error: true
+          filter_mode: added
+          level: error
+          flags: ""
+          tfsec_flags: --force-all-dirs
+
+  terraform-test:
+    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    env:
+      AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.TERRATEST_ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.TERRATEST_ARM_TENANT_ID }}
+      ARM_CLIENT_ID: ${{ secrets.TERRATEST_ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.TERRATEST_ARM_CLIENT_SECRET }}
+    outputs:
+      test_status: ${{ steps.terratest.outcome }}
+
+    steps:
+      - name: Set Git Access Token
+        run: |
+          git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+
+      - name: Get Dependencies
+        working-directory: ./test
+        run: |
+          go get -v -t -d
+          wget https://github.com/gruntwork-io/terratest/releases/download/v0.40.6/terratest_log_parser_linux_amd64
+          chmod +x terratest_log_parser_linux_amd64
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+
+      - name: Run Terratest
+        id: terratest
+        working-directory: ./test
+        run: |
+          go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
+          test ${PIPESTATUS[0]} -eq 0
+
+      - name: Upload Terratest Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: Terratest Result
+          path: |
+            **/report.xml
+          if-no-files-found: error
+
+  publish-results:
+    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terraform-test]
+    runs-on: ubuntu-latest
+    if: ${{ success() || failure() }}
+
+    steps:
+      - name: Publish Terraform Results
+        uses: marocchino/sticky-pull-request-comment@v2
+        env:
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
+          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+        with:
+          message: |
+            ## TERRAFORM (${{ env.TERRAFORM_VERSION }}) RESULTS
+            | action | status |
+            |---|---|
+            | terraform fmt | ${{ env.TF_FMT_RESULT }} |
+            | terraform docs | ${{ env.TF_DOCS_RESULT }} |
+            | terraform lint | ${{ env.TF_LINT_RESULT }} |
+            | terraform security | ${{ env.TF_LINT_RESULT }} |
+
+            Results for commit ${{ github.sha }}.
+
+            :recycle: This comment will be updated with latest results.
+
+      - name: Download Terratest Results
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Publish Terratest Results
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        with:
+          files: artifacts/**/*.xml
+          check_name: TERRATEST RESULTS
+          comment_title: TERRATEST RESULTS
+          hide_comments: all but latest
+          report_individual_runs: true

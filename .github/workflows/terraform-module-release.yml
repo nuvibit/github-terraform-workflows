@@ -1,0 +1,99 @@
+name: TERRAFORM MODULE RELEASE
+
+on:
+  workflow_call:
+    inputs:
+      semantic_version:
+        description: 'Specify specifying version range for semantic-release'
+        default: '18.0.0'
+        required: false
+        type: string
+      semantic_release_config:
+        description: 'Shareable config to create release of Terraform Modules'
+        default: '@nuvibit/github-terraform-semantic-release-config'
+        required: false
+        type: string
+      release_branch:
+        description: 'Name of branch on which Terraform Module release should happen'
+        default: 'main'
+        required: false
+        type: string
+    secrets:
+      GHE_API_TOKEN:
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check Branch Protection
+        uses: octokit/request-action@v2.x
+        id: get_branch_protection
+        continue-on-error: true
+        with:
+          route: GET /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+      
+      - name: Temporarily Disable Branch Protection
+        if: ${{ steps.get_branch_protection.outputs.status == '200' }}
+        uses: octokit/request-action@v2.x
+        id: branch_protection_update
+        with:
+          route: PUT /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
+          required_status_checks: |
+            null
+          enforce_admins: |
+            false
+          required_pull_request_reviews: |
+            null
+          restrictions: |
+            null
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Release Terraform Modules
+        uses: cycjimmy/semantic-release-action@v3
+        with:
+          semantic_version: ${{ inputs.semantic_version }}
+          branch: ${{ inputs.release_branch }}
+          extends: |
+            ${{ inputs.semantic_release_config }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable Branch Protection
+        if: ${{ always() && steps.get_branch_protection.outputs.status == '200' }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: PUT /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
+          required_status_checks: |
+            {
+              "strict": ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_status_checks.strict) || null }},
+              "checks": ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_status_checks.checks) || null }}
+            }
+          enforce_admins: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).enforce_admins.enabled) || null }}
+          required_pull_request_reviews: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_pull_request_reviews) || null }}
+          restrictions: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).restrictions) || null }}
+          required_linear_history: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_linear_history.enabled) || null }}
+          allow_force_pushes: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).allow_force_pushes.enabled) || null }}
+          allow_deletions: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).allow_deletions.enabled) || null }}
+          block_creations: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).block_creations.enabled) || null }}
+          required_conversation_resolution: |
+            ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_conversation_resolution.enabled) || null }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
