@@ -1,4 +1,4 @@
-name: TERRAFORM MODULE
+name: TERRAFORM MODULE MATRIX
 
 on:
   workflow_call:
@@ -6,6 +6,11 @@ on:
       tfe_hostname:
         description: 'Hostname for terraform cloud or enterprise'
         default: 'app.terraform.io'
+        required: false
+        type: string
+      terraform_version:
+        description: 'Terraform version used to format code'
+        default: 'latest'
         required: false
         type: string
       registry_hostname:
@@ -92,11 +97,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Run Terraform Format
-        id: fmt
-        uses: dflook/terraform-fmt@v1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          path: ./
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -recursive
+
+      # - name: Run Terraform Format
+      #   id: fmt
+      #   uses: dflook/terraform-fmt@v1
+      #   with:
+      #     path: ./
 
       - name: Commit Changes
         id: fmt_commit

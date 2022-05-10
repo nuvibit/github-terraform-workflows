@@ -58,6 +58,7 @@ jobs:
   terraform-fmt:
     runs-on: ubuntu-latest
     outputs:
+      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version }}
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
@@ -69,11 +70,37 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
+      - name: Get Workspace Info
+        if: ${{ inputs.tfe_workspace_exec_mode == 'cli' }}
+        id: workspace_curl
+        run: |
+          WORKSPACE=$(cat backend.tf | sed -rn 's/\s+name = "(\S+)"/\1/p')
+          ORGANIZATION=$(cat backend.tf | sed -rn 's/\s+organization = "(\S+)"/\1/p')
+
+          curl \
+          --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
+          --header "Content-Type: application/vnd.api+json" \
+          https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
+          
+          VERSION=$(cat workspace.txt | sed -rn 's/.*"terraform-version":"([0-9.]+)".*/\1/p')
+          echo "::set-output name=terraform_version::${VERSION}"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          # pseudo ternary expression: if tfe_workspace_exec_mode is 'cli' then terraform_version will be same as workspace settings else manually defined version will be used
+          terraform_version: ${{ inputs.tfe_workspace_exec_mode == 'cli' && steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+
       - name: Terraform Format
         id: fmt
-        uses: dflook/terraform-fmt@v1
-        with:
-          path: ${{ inputs.terraform_working_directory }}
+        run: terraform fmt -recursive
+        working-directory: ${{ inputs.terraform_working_directory }}
+
+      # - name: Terraform Format
+      #   id: fmt
+      #   uses: dflook/terraform-fmt@v1
+      #   with:
+      #     path: ${{ inputs.terraform_working_directory }}
 
       - name: Commit files
         id: fmt_commit
@@ -194,7 +221,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tfe_run_url: ${{ steps.tfe_run_url.outputs.url }}
-      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version }}
       init_status: ${{ steps.init.outcome }}
       plan_status: ${{ steps.plan.outputs.exitcode == '1' || steps.plan.outcome }}
 
@@ -209,26 +235,11 @@ jobs:
           # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
 
-      - name: Get Workspace Info
-        if: ${{ inputs.tfe_workspace_exec_mode == 'cli' }}
-        id: workspace_curl
-        run: |
-          WORKSPACE=$(cat backend.tf | sed -rn 's/\s+name = "(\S+)"/\1/p')
-          ORGANIZATION=$(cat backend.tf | sed -rn 's/\s+organization = "(\S+)"/\1/p')
-
-          curl \
-          --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
-          --header "Content-Type: application/vnd.api+json" \
-          https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
-          
-          VERSION=$(cat workspace.txt | sed -rn 's/.*"terraform-version":"([0-9.]+)".*/\1/p')
-          echo "::set-output name=terraform_version::${VERSION}"
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           # pseudo ternary expression: if tfe_workspace_exec_mode is 'cli' then terraform_version will be same as workspace settings else manually defined version will be used
-          terraform_version: ${{ inputs.tfe_workspace_exec_mode == 'cli' && steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+          terraform_version: ${{ inputs.tfe_workspace_exec_mode == 'cli' && needs.terraform-fmt.outputs.terraform_version || inputs.terraform_version }}
           terraform_wrapper: true
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}

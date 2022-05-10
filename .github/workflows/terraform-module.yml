@@ -72,11 +72,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Run Terraform Format
-        id: fmt
-        uses: dflook/terraform-fmt@v1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
         with:
-          path: ./
+          terraform_version: ${{ inputs.terraform_version }}
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -recursive
+
+      # - name: Run Terraform Format
+      #   id: fmt
+      #   uses: dflook/terraform-fmt@v1
+      #   with:
+      #     path: ./
 
       - name: Commit Changes
         id: fmt_commit

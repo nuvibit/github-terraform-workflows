@@ -261,6 +261,7 @@ The Terraform module workflow consists of the following steps:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
+| `terraform_version` | Terraform version used to format code | `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
 | `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
