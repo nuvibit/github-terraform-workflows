@@ -94,13 +94,6 @@ jobs:
       - name: Terraform Format
         id: fmt
         run: terraform fmt -recursive
-        working-directory: ${{ inputs.terraform_working_directory }}
-
-      # - name: Terraform Format
-      #   id: fmt
-      #   uses: dflook/terraform-fmt@v1
-      #   with:
-      #     path: ${{ inputs.terraform_working_directory }}
 
       - name: Commit files
         id: fmt_commit
