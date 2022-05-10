@@ -115,12 +115,21 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
+      - name: Check For Submodules
+        id: check_submodules
+        run: |
+          if [[ -d "./modules" ]]; then
+              echo "::set-output name=dir_exists::true"
+          else
+              echo "::set-output name=dir_exists::false"
+          fi
+
       - name: Run Terraform Docs
         id: docs
         uses: terraform-docs/gh-actions@v1.0.0
         with:
           working-dir: .
-          recursive: true
+          recursive: ${{ steps.check_submodules.outputs.dir_exists }}
           recursive-path: modules
           output-file: README.md
           output-method: inject
