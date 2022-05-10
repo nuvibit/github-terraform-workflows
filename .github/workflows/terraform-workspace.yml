@@ -81,7 +81,7 @@ jobs:
         env:
           BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
         run: |
-          if [[ ! -f $BACKEND_FILE ]]; then
+          if [[ ! -f $BACKEND_FILE ]]
           then
             echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
             exit 1
