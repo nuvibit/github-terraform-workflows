@@ -8,13 +8,18 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
-      tfe_workspace_exec_mode:
-        description: 'tfe_workspace_exec_mode can be "cli" or "remote"'
-        default: 'cli'
+      tfe_workspace_version:
+        description: 'Terraform version will be queried from the terraform cloud or enterprise workspace'
+        default: true
+        required: false
+        type: boolean
+      tfe_backend_file:
+        description: 'Name of file where terraform cloud or enterprise backend configuration is stored'
+        default: 'backend.tf'
         required: false
         type: string
       terraform_version:
-        description: 'Terraform version will be ignored if tfe_workspace_exec_mode is "cli"'
+        description: 'Terraform version will be ignored if tfe_workspace_version is "true"'
         default: 'latest'
         required: false
         type: string
@@ -71,26 +76,34 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get Workspace Info
-        if: ${{ inputs.tfe_workspace_exec_mode == 'cli' }}
+        if: ${{ inputs.tfe_workspace_version }}
         id: workspace_curl
+        env:
+          BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
         run: |
-          WORKSPACE=$(cat backend.tf | sed -rn 's/\s+name = "(\S+)"/\1/p')
-          ORGANIZATION=$(cat backend.tf | sed -rn 's/\s+organization = "(\S+)"/\1/p')
+          WORKSPACE=$(grep -Pzo 'workspaces\W+\{\W+name\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
+          ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
+
+          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]
+          then
+            echo "could not get terraform cloud or enterprise organization and workspace name from '$BACKEND_FILE'"
+            exit 1
+          fi
 
           curl \
           --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
           --header "Content-Type: application/vnd.api+json" \
           https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
           
-          VERSION=$(cat workspace.txt | sed -rn 's/.*"terraform-version":"([0-9.]+)".*/\1/p')
+          VERSION=$(cat workspace.txt | sed -rn 's|.*"terraform-version":"([0-9.]+)".*|\1|p')
           rm workspace.txt
           echo "::set-output name=terraform_version::${VERSION}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          # pseudo ternary expression: if tfe_workspace_exec_mode is 'cli' then terraform_version will be same as workspace settings else manually defined version will be used
-          terraform_version: ${{ inputs.tfe_workspace_exec_mode == 'cli' && steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
+          terraform_version: ${{ inputs.tfe_workspace_version && steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
 
       - name: Terraform Format
         id: fmt
@@ -233,8 +246,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          # pseudo ternary expression: if tfe_workspace_exec_mode is 'cli' then terraform_version will be same as workspace settings else manually defined version will be used
-          terraform_version: ${{ inputs.tfe_workspace_exec_mode == 'cli' && needs.terraform-fmt.outputs.terraform_version || inputs.terraform_version }}
+          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
+          terraform_version: ${{ inputs.tfe_workspace_version && needs.terraform-fmt.outputs.terraform_version || inputs.terraform_version }}
           terraform_wrapper: true
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
@@ -280,8 +293,8 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         env:
           TFE_RUN_URL: ${{ needs.terraform-run.outputs.tfe_run_url }}
-          # pseudo ternary expression: if tfe_workspace_exec_mode is 'cli' then terraform_version will be same as workspace settings else manually defined version will be used
-          TERRAFORM_VERSION: ${{ inputs.tfe_workspace_exec_mode == 'cli' && needs.terraform-run.outputs.terraform_version || inputs.terraform_version }}
+          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
+          TERRAFORM_VERSION: ${{ inputs.tfe_workspace_version && needs.terraform-run.outputs.terraform_version || inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
