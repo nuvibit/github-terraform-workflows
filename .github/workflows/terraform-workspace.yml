@@ -8,16 +8,16 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
-      tfe_workspace_version:
-        description: 'Terraform version will be queried from the terraform cloud or enterprise workspace'
-        default: true
-        required: false
-        type: boolean
       tfe_backend_file:
         description: 'Name of file where terraform cloud or enterprise backend configuration is stored'
         default: 'backend.tf'
         required: false
         type: string
+      tfe_workspace_version:
+        description: 'Terraform version will be queried from the terraform cloud or enterprise workspace'
+        default: true
+        required: false
+        type: boolean
       terraform_version:
         description: 'Terraform version will be ignored if tfe_workspace_version is "true"'
         default: 'latest'

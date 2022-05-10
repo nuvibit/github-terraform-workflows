@@ -74,9 +74,9 @@ The Terraform workspace workflow consists of the following steps:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `tfe_workspace_version` | Terraform version will be queried from the terraform cloud or enterprise workspace | `true` | false |
 | `tfe_backend_file` | Name of file where terraform cloud or enterprise backend configuration is stored | `backend.tf` | false |
-| `terraform_version` | Terraform version to use in github action (will be ignored if tfe_workspace_exec_mode is 'cli') | `latest` | false |
+| `tfe_workspace_version` | Terraform version will be queried from the terraform cloud or enterprise workspace | `true` | false |
+| `terraform_version` | Terraform version to use in github action (will be ignored if tfe_workspace_version is 'true') | `latest` | false |
 | `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
@@ -152,7 +152,7 @@ jobs:
 
 * An AWS account or Azure subscription is required to run Terratest.
 * For this workflow a Terraform Enterprise or Cloud workspace is required.
-* The Terraform workspace should be configured for [CLI runs][tfe_cli_run].
+* The Terraform workspace should be configured for [local runs][tfe_local_runs].
 * The terraform repository should contain a [remote backend][tfe_remote_backend].
 * [Semantic release config file][semantic_config] is required.
 
@@ -257,8 +257,7 @@ jobs:
 
 * An AWS account or Azure subscription is required to run Terratest.
 * For this workflow a Terraform Enterprise or Cloud workspace is required.
-* The Terraform workspace should be configured for [CLI runs][tfe_cli_run].
-* To dynamically test multiple terraform versions and providers the Terraform workspace should be configured for [local runs][tfe_local_runs].
+* The Terraform workspace should be configured for [local runs][tfe_local_runs].
 * The terraform repository should contain a [remote backend][tfe_remote_backend].
 
 ### Workflow Steps
