@@ -83,6 +83,7 @@ jobs:
           https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
           
           VERSION=$(cat workspace.txt | sed -rn 's/.*"terraform-version":"([0-9.]+)".*/\1/p')
+          rm workspace.txt
           echo "::set-output name=terraform_version::${VERSION}"
 
       - name: Setup Terraform
@@ -115,15 +116,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # pseudo ternary expression: if github event name is 'pull_request' then push to pull request branch else push to main branch
           branch: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
-      
-      - name: DEBUG
-        env: 
-          fmt_status: ${{ steps.fmt.outcome }}
-          diff_exists: ${{ steps.fmt_commit.outputs.diff }}
-        run: |
-          echo "fmt_status: ${{ env.fmt_status }}"
-          echo "diff_exists: ${{ env.diff_exists }}"
-          git status -s
 
   terraform-docs:
     needs: [terraform-fmt]

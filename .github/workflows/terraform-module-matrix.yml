@@ -106,12 +106,6 @@ jobs:
         id: fmt
         run: terraform fmt -recursive
 
-      # - name: Run Terraform Format
-      #   id: fmt
-      #   uses: dflook/terraform-fmt@v1
-      #   with:
-      #     path: ./
-
       - name: Commit Changes
         id: fmt_commit
         run: |
