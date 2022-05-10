@@ -110,7 +110,7 @@ on:
       - 'production/**'
 jobs:
   terraform-workspace:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-workspace.yml@v1
     with:
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
