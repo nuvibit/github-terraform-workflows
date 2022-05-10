@@ -4,17 +4,17 @@ on:
   workflow_call:
     inputs:
       tfe_hostname:
-        description: 'Hostname for terraform cloud or enterprise'
+        description: 'Hostname for terraform cloud/enterprise'
         default: 'app.terraform.io'
         required: false
         type: string
       tfe_backend_file:
-        description: 'Name of file where terraform cloud or enterprise backend configuration is stored'
+        description: 'Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory)'
         default: 'backend.tf'
         required: false
         type: string
       tfe_workspace_version:
-        description: 'Terraform version will be queried from the terraform cloud or enterprise workspace'
+        description: 'Terraform version will be queried from the terraform cloud/enterprise workspace'
         default: true
         required: false
         type: boolean
@@ -81,7 +81,15 @@ jobs:
         env:
           BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
         run: |
+          if [[ ! -f $BACKEND_FILE ]]; then
+          then
+            echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
+            exit 1
+          fi
+
+          # get workspace name from backend file (backend 'remote' config block) via perl-regexp
           WORKSPACE=$(grep -Pzo 'workspaces\W+\{\W+name\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
+          # get organization name from backend file (backend 'remote' config block) via perl-regexp
           ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
 
           if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]
@@ -90,6 +98,7 @@ jobs:
             exit 1
           fi
 
+          # query terraform version from tfe workspace
           curl \
           --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
           --header "Content-Type: application/vnd.api+json" \
@@ -103,7 +112,6 @@ jobs:
             echo "could not get terraform version from terraform cloud/enterprise workspace '$WORKSPACE' in organization '$ORGANIZATION'"
             exit 1
           fi
-
           echo "::set-output name=terraform_version::${VERSION}"
 
       - name: Setup Terraform

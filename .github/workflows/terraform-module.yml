@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       tfe_hostname:
-        description: 'Hostname for terraform cloud or enterprise'
+        description: 'Hostname for terraform cloud/enterprise'
         default: 'app.terraform.io'
         required: false
         type: string
