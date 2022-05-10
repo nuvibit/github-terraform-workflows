@@ -111,7 +111,7 @@ jobs:
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
       - name: Push changes
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@v0.6.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # pseudo ternary expression: if github event name is 'pull_request' then push to pull request branch else push to main branch
