@@ -94,6 +94,7 @@ jobs:
       - name: Terraform Format
         id: fmt
         run: terraform fmt -recursive
+        working-directory: ${{ inputs.terraform_working_directory }}
 
       - name: Commit files
         id: fmt_commit
@@ -114,6 +115,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # pseudo ternary expression: if github event name is 'pull_request' then push to pull request branch else push to main branch
           branch: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+      
+      - name: DEBUG
+        env: 
+          fmt_status: ${{ steps.fmt.outcome }}
+          diff_exists: ${{ steps.fmt_commit.outputs.diff }}
+        run: |
+          echo "fmt_status: ${{ env.fmt_status }}"
+          echo "diff_exists: ${{ env.diff_exists }}"
 
   terraform-docs:
     needs: [terraform-fmt]
