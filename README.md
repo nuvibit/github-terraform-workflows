@@ -19,7 +19,7 @@ uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-matr
 uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
 ```
 
-## Terraform Workspace
+## Terraform Workspace Workflow
 
 * This workflow can be used to run Terraform code in a [Terraform workspace][tfe_workspace].
 
@@ -48,7 +48,7 @@ The Terraform workspace workflow consists of the following steps:
 4. Terraform Security
 5. Terraform Apply
 
-### Inputs
+### Inputs [Terraform Workspace Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -62,14 +62,14 @@ The Terraform workspace workflow consists of the following steps:
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 
-### Secrets
+### Secrets [Terraform Workspace Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 | `TFE_API_TOKEN` | Terraform Enterprise/Cloud API Token is required to authenticate with Terraform workspace | `""` | true |
 
-### Usage
+### Usage [Terraform Workspace Workflow]
 
 ```yaml
 name: TERRAFORM WORKSPACE
@@ -93,7 +93,34 @@ jobs:
       TFE_API_TOKEN: ${{ secrets.TFE_API_TOKEN }}
 ```
 
-## Terraform module workflow (fixed version testing)
+### Usage [Terraform Workspace Workflow + custom working directory]
+
+```yaml
+name: TERRAFORM WORKSPACE PRODUCTION
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'production/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'production/**'
+jobs:
+  terraform-workspace:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module.yml@v1
+    with:
+      tflint_repo: "nuvibit/github-tflint-config"
+      tflint_repo_config_path: "aws/.tflint.hcl"
+      terraform_working_directory: "./production"
+    secrets:
+      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+      TFE_API_TOKEN: ${{ secrets.TFE_API_TOKEN }}
+```
+
+## Terraform Module Workflow (fixed version testing)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
@@ -124,7 +151,7 @@ The Terraform module workflow consists of the following steps:
 2. Release module
 3. Enable Branch Protection
 
-### Inputs Module Workflow
+### Inputs [Terraform Module Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -136,7 +163,7 @@ The Terraform module workflow consists of the following steps:
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 
-### Secrets Module Workflow
+### Secrets [Terraform Module Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -150,7 +177,7 @@ The Terraform module workflow consists of the following steps:
 | `TERRATEST_ARM_CLIENT_ID` | Azure Client Id for Terratest Subscription | `""` | false |
 | `TERRATEST_ARM_CLIENT_SECRET` | Azure Client Secret for Terratest Subscription | `""` | false |
 
-### Inputs Release Workflow
+### Inputs [Terraform Release Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -158,13 +185,13 @@ The Terraform module workflow consists of the following steps:
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
 
-### Secrets Release Workflow
+### Secrets [Terraform Release Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 
-### Usage
+### Usage [Terraform Module + Release Workflow]
 
 ```yaml
 name: TERRAFORM MODULE
@@ -198,34 +225,7 @@ jobs:
       GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
 
-### Usage - Terraform Workspace with custom working directory
-
-```yaml
-name: TERRAFORM WORKSPACE PRODUCTION
-on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'production/**'
-  push:
-    branches:
-      - main
-    paths:
-      - 'production/**'
-jobs:
-  terraform-workspace:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module.yml@v1
-    with:
-      tflint_repo: "nuvibit/github-tflint-config"
-      tflint_repo_config_path: "aws/.tflint.hcl"
-      terraform_working_directory: "./production"
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
-      TFE_API_TOKEN: ${{ secrets.TFE_API_TOKEN }}
-```
-
-## Terraform module workflow (matrix version testing)
+## Terraform Module Workflow (matrix version testing)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
@@ -256,7 +256,7 @@ The Terraform module workflow consists of the following steps:
 2. Release module
 3. Enable Branch Protection
 
-### Inputs Module Workflow
+### Inputs [Terraform Module Matrix Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -273,7 +273,7 @@ The Terraform module workflow consists of the following steps:
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 
-### Secrets Module Workflow
+### Secrets [Terraform Module Matrix Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -287,7 +287,7 @@ The Terraform module workflow consists of the following steps:
 | `TERRATEST_ARM_CLIENT_ID` | Azure Client Id for Terratest Subscription | `""` | false |
 | `TERRATEST_ARM_CLIENT_SECRET` | Azure Client Secret for Terratest Subscription | `""` | false |
 
-### Inputs Release Workflow
+### Inputs [Terraform Release Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
@@ -295,13 +295,13 @@ The Terraform module workflow consists of the following steps:
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
 
-### Secrets Release Workflow
+### Secrets [Terraform Release Workflow]
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 
-### Usage
+### Usage [Terraform Module Matrix + Release Workflow]
 
 ```yaml
 name: TERRAFORM MODULE
