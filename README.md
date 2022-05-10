@@ -1,6 +1,6 @@
 # github-terraform-workflows
 
-Reusable [GitHub workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
+Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
 
 ## Quick Start
 
@@ -18,6 +18,27 @@ uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-rele
 uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-matrix.yml@v1
 uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
 ```
+
+## Actions
+
+The reusable Github Workflows include the following public Github Actions:
+
+- [`@actions/checkout`](https://github.com/actions/checkout)
+- [`@actions/download-artifact`](https://github.com/actions/download-artifact)
+- [`@actions/setup-go`](https://github.com/actions/setup-go)
+- [`@actions/upload-artifact`](https://github.com/actions/upload-artifact)
+- [`@ad-m/github-push-action`](https://github.com/ad-m/github-push-action)
+- [`@cycjimmy/semantic-release-action`](https://github.com/cycjimmy/semantic-release-action)
+- [`@EnricoMi/publish-unit-test-result-action`](https://github.com/EnricoMi/publish-unit-test-result-action)
+- [`@hashicorp/setup-terraform`](https://github.com/hashicorp/setup-terraform)
+- [`@marocchino/sticky-pull-request-comment`](https://github.com/marocchino/sticky-pull-request-comment)
+- [`@octokit/request-action`](https://github.com/octokit/request-action)
+- [`@reviewdog/action-tflint`](https://github.com/reviewdog/action-tflint)
+- [`@reviewdog/action-tfsec`](https://github.com/reviewdog/action-tfsec)
+- [`@terraform-docs/gh-actions`](https://github.com/terraform-docs/gh-actions)
+- [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
+
+In addition to these Github Actions, custom scripts are executed.
 
 ## Terraform Workspace Workflow
 
