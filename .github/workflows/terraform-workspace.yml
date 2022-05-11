@@ -204,11 +204,11 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ inputs.terraform_working_directory }}
           reporter: github-pr-check
-          fail_on_error: "true"
-          filter_mode: added
+          fail_on_error: true
+          filter_mode: nofilter
           level: error
           flags: ""
-          tflint_init: "true"
+          tflint_init: true
 
   terraform-security:
     needs: [terraform-fmt, terraform-docs, terraform-lint]
@@ -233,7 +233,7 @@ jobs:
           working_directory: ${{ inputs.terraform_working_directory }}
           reporter: github-pr-check
           fail_on_error: true
-          filter_mode: added
+          filter_mode: nofilter
           level: error
           flags: ""
           tfsec_flags: --force-all-dirs
