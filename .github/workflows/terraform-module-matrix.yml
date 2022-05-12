@@ -83,6 +83,9 @@ on:
       TERRATEST_ARM_CLIENT_SECRET:
         required: false
 
+# Ensures that only one workflow runs at a time
+concurrency: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+
 jobs:
   terraform-fmt:
     runs-on: ubuntu-latest
