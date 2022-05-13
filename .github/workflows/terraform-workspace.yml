@@ -129,7 +129,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ steps.workspace_curl.outputs.terraform_version }}
+          terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
 
       - name: Terraform Format
         id: fmt
