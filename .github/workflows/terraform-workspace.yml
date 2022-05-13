@@ -70,13 +70,13 @@ on:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+concurrency: ${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
 
 jobs:
   terraform-fmt:
     runs-on: ubuntu-latest
     outputs:
-      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version }}
+      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
@@ -84,8 +84,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get Workspace Info
@@ -130,8 +129,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
-          terraform_version: ${{ inputs.tfe_workspace_version && steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+          terraform_version: ${{ steps.workspace_curl.outputs.terraform_version }}
 
       - name: Terraform Format
         id: fmt
@@ -155,8 +153,7 @@ jobs:
         uses: ad-m/github-push-action@v0.6.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # pseudo ternary expression: if github event name is 'pull_request' then push to pull request branch else push to main branch
-          branch: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          branch: ${{ github.event.pull_request.head.ref || github.ref }}
 
   terraform-docs:
     needs: [terraform-fmt]
@@ -170,8 +167,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Terraform Docs
@@ -198,8 +194,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
@@ -235,8 +230,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
       
       - name: Run TFSec
@@ -270,14 +264,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          # pseudo ternary expression: if github event name is 'pull_request' then checkout pull request branch else checkout main branch
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
-          terraform_version: ${{ inputs.tfe_workspace_version && needs.terraform-fmt.outputs.terraform_version || inputs.terraform_version }}
+          terraform_version: ${{ needs.terraform-fmt.outputs.terraform_version }}
           terraform_wrapper: true
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
@@ -323,8 +315,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         env:
           TFE_RUN_URL: ${{ needs.terraform-run.outputs.tfe_run_url }}
-          # pseudo ternary expression: if tfe_workspace_version is 'true' then terraform_version will be same as workspace settings else manually defined version will be used
-          TERRAFORM_VERSION: ${{ inputs.tfe_workspace_version && needs.terraform-run.outputs.terraform_version || inputs.terraform_version }}
+          TERRAFORM_VERSION: ${{ needs.terraform-run.outputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
