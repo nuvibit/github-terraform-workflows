@@ -70,7 +70,7 @@ on:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
 
 jobs:
   terraform-fmt:

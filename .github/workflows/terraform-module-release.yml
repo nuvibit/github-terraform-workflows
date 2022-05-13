@@ -23,7 +23,7 @@ on:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.event.pull_request.head.ref || github.ref }}
+concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
 
 jobs:
   release:
