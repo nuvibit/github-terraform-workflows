@@ -315,7 +315,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         env:
           TFE_RUN_URL: ${{ needs.terraform-run.outputs.tfe_run_url }}
-          TERRAFORM_VERSION: ${{ needs.terraform-run.outputs.terraform_version }}
+          TERRAFORM_VERSION: ${{ needs.terraform-fmt.outputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
