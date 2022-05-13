@@ -53,6 +53,16 @@ on:
         default: 'main'
         required: false
         type: string
+      tflint_version:
+        description: 'Tflint version to use'
+        default: 'latest'
+        required: false
+        type: string
+      tfsec_version:
+        description: 'Tfsec version to use'
+        default: 'latest'
+        required: false
+        type: string
       commit_user:
         description: 'Username which should be used for commits by github action'
         default: 'github-actions'
@@ -82,6 +92,9 @@ on:
         required: false
       TERRATEST_ARM_CLIENT_SECRET:
         required: false
+
+# Ensures that only one workflow runs at a time
+concurrency: ${{ github.event.pull_request.head.ref || github.ref }}
 
 jobs:
   terraform-fmt:
@@ -191,6 +204,7 @@ jobs:
         id: lint
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
           fail_on_error: true
           filter_mode: nofilter
@@ -217,6 +231,7 @@ jobs:
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          tfsec_version: ${{ inputs.tfsec_version }}
           reporter: github-pr-check
           fail_on_error: true
           filter_mode: nofilter
@@ -250,14 +265,6 @@ jobs:
     needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config]
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
-    env:
-      AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.TERRATEST_ARM_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.TERRATEST_ARM_TENANT_ID }}
-      ARM_CLIENT_ID: ${{ secrets.TERRATEST_ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.TERRATEST_ARM_CLIENT_SECRET }}
 
     strategy:
       max-parallel: ${{ inputs.terratest_max_parallel }}
@@ -350,6 +357,14 @@ jobs:
       - name: Run Terratest
         id: terratest
         working-directory: ./test
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.TERRATEST_ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.TERRATEST_ARM_TENANT_ID }}
+          ARM_CLIENT_ID: ${{ secrets.TERRATEST_ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.TERRATEST_ARM_CLIENT_SECRET }}
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
