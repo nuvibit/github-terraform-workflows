@@ -213,6 +213,7 @@ jobs:
           level: error
           flags: ""
           tfsec_flags: --force-all-dirs
+          working_directory: examples
 
   terraform-test:
     needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
