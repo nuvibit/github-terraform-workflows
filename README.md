@@ -87,6 +87,7 @@ The Terraform workspace workflow consists of the following steps:
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `tfsec_directory` | Directory which should be scanned by tfsec | `.` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
@@ -193,6 +194,7 @@ The Terraform module workflow consists of the following steps:
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `tfsec_directory` | Directory which should be scanned by tfsec | `examples` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
@@ -310,6 +312,7 @@ The Terraform module workflow consists of the following steps:
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `tfsec_directory` | Directory which should be scanned by tfsec | `examples` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
