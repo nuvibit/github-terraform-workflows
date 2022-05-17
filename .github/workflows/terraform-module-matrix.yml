@@ -308,7 +308,7 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="TERRATEST RESULT (terraform_version$(echo "${{ matrix.terraform_version }}" | grep -o '[0-9.]\+')"
+            artifact_name="TERRATEST RESULT (terraform_version$(echo "${{ matrix.terraform_version }}")"
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
