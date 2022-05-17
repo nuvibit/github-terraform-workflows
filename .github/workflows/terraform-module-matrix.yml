@@ -270,12 +270,6 @@ jobs:
       max-parallel: ${{ inputs.terratest_max_parallel }}
       matrix: ${{ fromJson(needs.terratest-config.outputs.matrix) }}
 
-    steps:
-      - name: Job Summary
-        run: |
-          echo '### TERRATEST RESULTS :octocat:' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-
       - name: Set Git Access Token
         run: |
           git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
@@ -313,7 +307,7 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="Terratest Results (terraform=$(echo "${{ matrix.terraform_version }}" | grep -o '[0-9.]\+')"
+            artifact_name="TERRATEST RESULTS (terraform.version=$(echo "${{ matrix.terraform_version }}" | grep -o '[0-9.]\+')"
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
