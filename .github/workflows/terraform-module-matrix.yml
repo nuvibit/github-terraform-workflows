@@ -374,6 +374,22 @@ jobs:
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
           ls -la .
+      
+      - name: Job Summary
+        env:
+          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+        run: |
+          echo '### ${{ steps.terraform_lock_file.outputs.artifact_name }} :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| action | status |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
 
 
       # - name: Upload Terratest Results
@@ -385,29 +401,12 @@ jobs:
       #       **/report.xml
       #     if-no-files-found: error
 
-  publish-results:
-    needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
-    runs-on: ubuntu-latest
-    if: ${{ success() || failure() }}
+  # publish-results:
+  #   needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
+  #   runs-on: ubuntu-latest
+  #   if: ${{ success() || failure() }}
 
-    steps:
-      - name: Job Summary
-        env:
-          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-        run: |
-          echo '### TERRATEST RESULTS 2 :octocat:' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '| action | status |' >> $GITHUB_STEP_SUMMARY
-          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-
-
+  #   steps:
       # - name: Publish Terraform Results
       #   uses: marocchino/sticky-pull-request-comment@v2
       #   env:
