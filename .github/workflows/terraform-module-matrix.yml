@@ -240,7 +240,7 @@ jobs:
   #         tfsec_flags: --force-all-dirs
 
   terratest-config:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+    needs: [terraform-fmt, terraform-docs,]
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -262,7 +262,7 @@ jobs:
           echo "::set-output name=matrix::$JSON"
 
   terratest-run:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config]
+    needs: [terraform-fmt, terraform-docs, terratest-config]
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
 
@@ -386,7 +386,7 @@ jobs:
       #     if-no-files-found: error
 
   publish-results:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config, terratest-run]
+    needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
     runs-on: ubuntu-latest
     if: ${{ success() || failure() }}
 
