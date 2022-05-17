@@ -104,6 +104,11 @@ jobs:
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
     steps:
+      - name: Job Summary
+        run: |
+          echo '### TERRATEST RESULTS :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '<br><br>'
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
@@ -386,14 +391,19 @@ jobs:
     if: ${{ success() || failure() }}
 
     steps:
-      - name: Terratest Results
+      - name: Job Summary
         env:
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
         run: |
-          echo '### TERRATEST RESULTS :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '| action | status |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|
+          echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+          echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
 
 
       # - name: Publish Terraform Results
