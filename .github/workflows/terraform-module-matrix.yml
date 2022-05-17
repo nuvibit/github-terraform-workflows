@@ -308,7 +308,7 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="TERRATEST RESULT (terraform_version$(echo "${{ matrix.terraform_version }}")"
+            artifact_name="terraform_version $(echo "${{ matrix.terraform_version }}")<br>"
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
@@ -346,12 +346,12 @@ jobs:
                 done
               fi
               # append provider versions to artifact name
-              artifact_name+=" terraform_provider.$(echo "$provider" | sed 's:\/:\.:g')= ${version}"
+              artifact_name+=" terraform_provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}"
               # generate terraform lock file for each provider in each terratest example directory
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
-            echo "::set-output name=artifact_name::${artifact_name})"
+            echo "::set-output name=artifact_name::${artifact_name}"
           done
 
       - name: Run Terratest
@@ -377,7 +377,8 @@ jobs:
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
         run: |
-          echo '### ${{ steps.terraform_lock_file.outputs.artifact_name }} :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '### TERRATEST RESULT :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| action | status |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
