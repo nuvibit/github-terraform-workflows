@@ -399,7 +399,7 @@ jobs:
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
         run: |
           echo '| action | status |' >> $GITHUB_STEP_SUMMARY
-          echo '|---|---|
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
           echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
           echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
           echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
