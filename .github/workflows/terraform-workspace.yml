@@ -98,8 +98,7 @@ jobs:
         env:
           BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
         run: |
-          if [[ ! -f $BACKEND_FILE ]]
-          then
+          if [[ ! -f $BACKEND_FILE ]]; then
             echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
             exit 1
           fi
@@ -109,8 +108,7 @@ jobs:
           # get organization name from backend file (backend 'remote' config block) via perl-regexp
           ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
 
-          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]
-          then
+          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]; then
             echo "could not get terraform cloud/enterprise organization or workspace name from '$BACKEND_FILE'"
             exit 1
           fi
@@ -124,8 +122,7 @@ jobs:
           VERSION=$(cat workspace.txt | sed -rn 's|.*"terraform-version":"([0-9.]+)".*|\1|p')
           rm workspace.txt
 
-          if [[ -z "$VERSION" ]]
-          then
+          if [[ -z "$VERSION" ]]; then
             echo "could not get terraform version from terraform cloud/enterprise workspace '$WORKSPACE' in organization '$ORGANIZATION'"
             exit 1
           fi
@@ -146,8 +143,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"

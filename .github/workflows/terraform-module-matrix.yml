@@ -134,8 +134,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"
@@ -166,8 +165,7 @@ jobs:
       - name: Check For Submodules
         id: check_submodules
         run: |
-          if [[ -d "./modules" ]]
-          then
+          if [[ -d "./modules" ]]; then
               echo "::set-output name=dir_exists::true"
           else
               echo "::set-output name=dir_exists::false"
@@ -295,8 +293,7 @@ jobs:
 
       - name: Check For Examples
         run: |
-          if [[ -d "./${{ inputs.terratest_examples_path }}" ]]
-          then
+          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
             echo "could not find examples directory '${{ inputs.terratest_examples_path }}' required for terratest"
             exit 1
           fi
@@ -335,30 +332,24 @@ jobs:
             for provider in $(jq -r 'keys | .[]' <<< $PROVIDER_JSON); do
               version=$(jq -r ".[$k]" <<< $PROVIDER_JSON)
               # get provider version if contains X from terraform registry
-              if [[ "$version" == *"X"* ]]
-              then
+              if [[ "$version" == *"X"* ]]; then
                 for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
                   i=$(echo $i | tr -d '"')
                   declare -a semver
                   semver=($(echo "$version" | tr '.' '\n'))
                   # if X is on first position
-                  if [[ "${semver[0]}" == "X" ]]
-                  then
+                  if [[ "${semver[0]}" == "X" ]]; then
                     version=$i
                     break;
                   # if X is on second position
-                  elif [[ "${semver[1]}" == "X" ]]
-                  then
-                    if [[ $i == "${semver[0]}."* ]]
-                    then
+                  elif [[ "${semver[1]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}."* ]]; then
                       version=$i
                       break;
                     fi
                   # if X is on third position
-                  elif [[ "${semver[2]}" == "X" ]]
-                  then
-                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]
-                    then
+                  elif [[ "${semver[2]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]; then
                       version=$i
                       break;
                     fi
@@ -402,10 +393,11 @@ jobs:
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| action | status |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-          echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+
+        # echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+        # echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+        # echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
+        # echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
 
 
       # - name: Upload Terratest Results

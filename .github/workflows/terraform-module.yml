@@ -104,8 +104,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"
@@ -136,8 +135,7 @@ jobs:
       - name: Check For Submodules
         id: check_submodules
         run: |
-          if [[ -d "./modules" ]]
-          then
+          if [[ -d "./modules" ]]; then
               echo "::set-output name=dir_exists::true"
           else
               echo "::set-output name=dir_exists::false"
