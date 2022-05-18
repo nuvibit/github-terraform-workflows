@@ -186,71 +186,71 @@ jobs:
           git-push-user-email: ${{ inputs.commit_email }}
           git-commit-message: "docs(terraform-docs): update readme"
 
-  # terraform-lint:
-  #   needs: [terraform-fmt, terraform-docs]
-  #   if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     lint_status: ${{ steps.lint.outcome }}
+  terraform-lint:
+    needs: [terraform-fmt, terraform-docs]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      lint_status: ${{ steps.lint.outcome }}
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
-  #       with:
-  #         ref: ${{ github.event.pull_request.head.ref }}
-  #         token: ${{ secrets.GHE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
 
-  #     - name: Get TFLint Config
-  #       uses: terraform-linters/tflint-load-config-action@v0
-  #       if: ${{ inputs.tflint_repo_config_path != '' }}
-  #       with:
-  #         source-repo: ${{ inputs.tflint_repo }}
-  #         source-path: ${{ inputs.tflint_repo_config_path }}
-  #         source-ref: ${{ inputs.tflint_repo_ref }}
+      - name: Get TFLint Config
+        uses: terraform-linters/tflint-load-config-action@v0
+        if: ${{ inputs.tflint_repo_config_path != '' }}
+        with:
+          source-repo: ${{ inputs.tflint_repo }}
+          source-path: ${{ inputs.tflint_repo_config_path }}
+          source-ref: ${{ inputs.tflint_repo_ref }}
 
-  #     - name: Run TFLint
-  #       uses: reviewdog/action-tflint@v1
-  #       id: lint
-  #       with:
-  #         github_token: ${{ secrets.GITHUB_TOKEN }}
-  #         tflint_version: ${{ inputs.tflint_version }}
-  #         reporter: github-pr-check
-  #         fail_on_error: true
-  #         filter_mode: nofilter
-  #         level: error
-  #         flags: ""
-  #         tflint_init: true
+      - name: Run TFLint
+        uses: reviewdog/action-tflint@v1
+        id: lint
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tflint_version: ${{ inputs.tflint_version }}
+          reporter: github-pr-check
+          fail_on_error: true
+          filter_mode: nofilter
+          level: error
+          flags: ""
+          tflint_init: true
 
-  # terraform-security:
-  #   needs: [terraform-fmt, terraform-docs, terraform-lint]
-  #   if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     security_status: ${{ steps.security.outcome }}
+  terraform-security:
+    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      security_status: ${{ steps.security.outcome }}
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
-  #       with:
-  #         ref: ${{ github.event.pull_request.head.ref }}
-  #         token: ${{ secrets.GHE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GHE_API_TOKEN }}
       
-  #     - name: Run TFSec
-  #       uses: reviewdog/action-tfsec@v1
-  #       id: security
-  #       with:
-  #         github_token: ${{ secrets.GITHUB_TOKEN }}
-  #         tfsec_version: ${{ inputs.tfsec_version }}
-  #         reporter: github-pr-check
-  #         fail_on_error: true
-  #         filter_mode: nofilter
-  #         level: error
-  #         flags: ""
-  #         tfsec_flags: --force-all-dirs
-  #         working_directory: ${{ inputs.tfsec_directory }}
+      - name: Run TFSec
+        uses: reviewdog/action-tfsec@v1
+        id: security
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tfsec_version: ${{ inputs.tfsec_version }}
+          reporter: github-pr-check
+          fail_on_error: true
+          filter_mode: nofilter
+          level: error
+          flags: ""
+          tfsec_flags: --force-all-dirs
+          working_directory: ${{ inputs.tfsec_directory }}
 
   terratest-config:
-    needs: [terraform-fmt, terraform-docs,]
+    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -272,7 +272,7 @@ jobs:
           echo "::set-output name=matrix::$JSON"
 
   terratest-run:
-    needs: [terraform-fmt, terraform-docs, terratest-config]
+    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config]
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
 
@@ -380,8 +380,7 @@ jobs:
           test ${PIPESTATUS[0]} -eq 0
           echo "./out/summary.log"
       
-      - name: Job Summary
-        id: terratest_summary
+      - name: Terratest Summary
         if: ${{ always() }}
         working-directory: ./test
         run: |
@@ -400,7 +399,7 @@ jobs:
           test_found=false
           while IFS= read -r line
           do
-            if [[ "$line" == *"PASSx"* ]]; then
+            if [[ "$line" == *"PASS"* ]]; then
               echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
               test_found=true
             elif [[ "$line" == *"FAIL"* ]]; then
