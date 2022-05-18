@@ -366,7 +366,6 @@ jobs:
           done
 
       - name: Run Terratest
-        id: terratest
         working-directory: ./test
         env:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
@@ -381,12 +380,9 @@ jobs:
           test ${PIPESTATUS[0]} -eq 0
       
       - name: Job Summary
+        id: terratest_summary
+        if: ${{ allways() }}
         working-directory: ./test
-        env:
-          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
         run: |
           echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
@@ -394,27 +390,39 @@ jobs:
           echo '| result | test |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
 
+          if [[ ! -f "./out/summary.log" ]]; then
+            echo ":exclamation: could not find terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          test_found=false
           while IFS= read -r line
           do
-            if [[ "$line" == "---"* ]]; then
-              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
+            if [[ "$line" == *"PASSx"* ]]; then
+              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
+              test_found=true
+            elif [[ "$line" == *"FAIL"* ]]; then
+              echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
+              test_found=true
+              echo "::set-output name=test_failed::true"
             fi
           done < "./out/summary.log"
 
+          if [[ $test_found == false ]]; then
+            echo ":exclamation: could not find terratest results in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+
+        # env:
+        #   TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+        #   TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+        #   TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+        #   TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
         # echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
         # echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
         # echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
         # echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-
-
-      # - name: Upload Terratest Results
-      #   if: ${{ always() }}
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: ${{ steps.terraform_lock_file.outputs.artifact_name }}
-      #     path: |
-      #       **/report.xml
-      #     if-no-files-found: error
 
   # publish-results:
   #   needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
