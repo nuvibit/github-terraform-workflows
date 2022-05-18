@@ -325,7 +325,7 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="terraform_version $(echo "${{ matrix.terraform_version }}") | "
+            artifact_name="<br>terraform_version $(echo "${{ matrix.terraform_version }}")<br>"
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
@@ -357,12 +357,12 @@ jobs:
                 done
               fi
               # append provider versions to artifact name
-              artifact_name+="terraform_provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}"
+              artifact_name+="terraform_provider: $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
               # generate terraform lock file for each provider in each terratest example directory
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
-            echo "::set-output name=artifact_name::${artifact_name}"
+            echo "::set-output name=artifact_name::${artifact_name}<br>"
           done
 
       - name: Run Terratest
