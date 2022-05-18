@@ -381,6 +381,7 @@ jobs:
           test ${PIPESTATUS[0]} -eq 0
       
       - name: Job Summary
+        working-directory: ./test
         env:
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
