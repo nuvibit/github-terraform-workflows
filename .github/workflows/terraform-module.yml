@@ -38,6 +38,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      tfsec_directory:
+        description: 'Directory which should be scanned by tfsec'
+        default: 'examples'
+        required: false
+        type: string
       commit_user:
         description: 'Username which should be used for commits by github action'
         default: 'github-actions'
@@ -131,7 +136,8 @@ jobs:
       - name: Check For Submodules
         id: check_submodules
         run: |
-          if [[ -d "./modules" ]]; then
+          if [[ -d "./modules" ]]
+          then
               echo "::set-output name=dir_exists::true"
           else
               echo "::set-output name=dir_exists::false"
@@ -213,6 +219,7 @@ jobs:
           level: error
           flags: ""
           tfsec_flags: --force-all-dirs
+          working_directory: ${{ inputs.tfsec_directory }}
 
   terraform-test:
     needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]

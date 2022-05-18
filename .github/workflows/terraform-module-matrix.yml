@@ -23,6 +23,11 @@ on:
         default: 1
         required: false
         type: number
+      terratest_examples_path:
+        description: 'Path to terratest example directory'
+        default: 'examples'
+        required: false
+        type: string
       terratest_config_repo:
         description: 'Public repo where terratest matrix json is stored'
         default: 'nuvibit/github-terratest-config'
@@ -61,6 +66,11 @@ on:
       tfsec_version:
         description: 'Tfsec version to use'
         default: 'latest'
+        required: false
+        type: string
+      tfsec_directory:
+        description: 'Directory which should be scanned by tfsec'
+        default: 'examples'
         required: false
         type: string
       commit_user:
@@ -156,7 +166,8 @@ jobs:
       - name: Check For Submodules
         id: check_submodules
         run: |
-          if [[ -d "./modules" ]]; then
+          if [[ -d "./modules" ]]
+          then
               echo "::set-output name=dir_exists::true"
           else
               echo "::set-output name=dir_exists::false"
@@ -238,6 +249,7 @@ jobs:
   #         level: error
   #         flags: ""
   #         tfsec_flags: --force-all-dirs
+  #         working_directory: ${{ inputs.tfsec_directory }}
 
   terratest-config:
     needs: [terraform-fmt, terraform-docs,]
@@ -281,6 +293,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
+      - name: Check For Examples
+        run: |
+          if [[ -d "./${{ inputs.terratest_examples_path }}" ]]
+          then
+            echo "could not find examples directory '${{ inputs.terratest_examples_path }}' required for terratest"
+            exit 1
+          fi
+
       - name: Setup Go
         uses: actions/setup-go@v3
 
@@ -308,7 +328,7 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="* terraform_version $(echo "${{ matrix.terraform_version }}")<br>"
+            artifact_name="terraform_version $(echo "${{ matrix.terraform_version }}") | "
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
@@ -346,7 +366,7 @@ jobs:
                 done
               fi
               # append provider versions to artifact name
-              artifact_name+="* terraform_provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}"
+              artifact_name+="terraform_provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}"
               # generate terraform lock file for each provider in each terratest example directory
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
