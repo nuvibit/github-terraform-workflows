@@ -362,7 +362,7 @@ jobs:
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
-            echo "::set-output name=artifact_name::${artifact_name}<br>"
+            echo "::set-output name=artifact_name::${artifact_name}"
           done
 
       - name: Run Terratest
@@ -393,7 +393,7 @@ jobs:
 
           if [[ ! -f "./out/summary.log" ]]; then
             echo '' >> $GITHUB_STEP_SUMMARY
-            echo ":exclamation: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -412,7 +412,7 @@ jobs:
 
           if [[ $test_found == false ]]; then
             echo '' >> $GITHUB_STEP_SUMMARY
-            echo ":exclamation: empty terratest results in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
