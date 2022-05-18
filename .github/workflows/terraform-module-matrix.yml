@@ -381,7 +381,7 @@ jobs:
       
       - name: Job Summary
         id: terratest_summary
-        if: ${{ allways() }}
+        if: ${{ always() }}
         working-directory: ./test
         run: |
           echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
