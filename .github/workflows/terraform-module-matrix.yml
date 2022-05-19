@@ -443,21 +443,24 @@ jobs:
       - terratest-run
     runs-on: ubuntu-latest
     if: ${{ always() }}
-    env:
-      TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-      TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-      TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-      TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-      TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
-    run: |
-      echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
-      echo '' >> $GITHUB_STEP_SUMMARY
-      echo '| status | check |' >> $GITHUB_STEP_SUMMARY
-      echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
-      echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
-      echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-      echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-      echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
+
+    steps:
+      - name: Workflow Summary
+        env:
+          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+          TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| status | check |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
 
 
   # publish-results:
