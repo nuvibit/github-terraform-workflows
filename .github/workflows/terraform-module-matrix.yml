@@ -148,7 +148,8 @@ jobs:
           branch: ${{ github.event.pull_request.head.ref }}
 
   terraform-docs:
-    needs: [terraform-fmt]
+    needs:
+      - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -187,7 +188,9 @@ jobs:
           git-commit-message: "docs(terraform-docs): update readme"
 
   terraform-lint:
-    needs: [terraform-fmt, terraform-docs]
+    needs: 
+      - terraform-fmt
+      - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -222,7 +225,10 @@ jobs:
           tflint_init: true
 
   terraform-security:
-    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -250,7 +256,11 @@ jobs:
           working_directory: ${{ inputs.tfsec_directory }}
 
   terratest-config:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -272,9 +282,16 @@ jobs:
           echo "::set-output name=matrix::$JSON"
 
   terratest-run:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
+    outputs:
+      terratest_status: ${{ steps.terratest_run.outcome && steps.terratest_summary.outcome }}
 
     strategy:
       max-parallel: ${{ inputs.terratest_max_parallel }}
@@ -366,6 +383,7 @@ jobs:
           done
 
       - name: Run Terratest
+        id: terratest_run
         working-directory: ./test
         env:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
@@ -382,6 +400,7 @@ jobs:
       
       - name: Terratest Summary
         if: ${{ always() }}
+        id: terratest_summary
         working-directory: ./test
         run: |
           echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
@@ -405,7 +424,6 @@ jobs:
             elif [[ "$line" == *"FAIL"* ]]; then
               echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
               test_found=true
-              echo "::set-output name=test_failed::true"
             fi
           done < "./out/summary.log"
 
@@ -415,16 +433,32 @@ jobs:
             exit 1
           fi
 
+  job-summary:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
+      - terratest-run
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    env:
+      TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+      TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+      TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+      TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+      TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
+    run: |
+      echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+      echo '' >> $GITHUB_STEP_SUMMARY
+      echo '| status | check |' >> $GITHUB_STEP_SUMMARY
+      echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+      echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+      echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+      echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+      echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
 
-        # env:
-        #   TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-        #   TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-        #   TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-        #   TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-        # echo '| terraform format | ${{ env.TF_FMT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-        # echo '| terraform docs | ${{ env.TF_DOCS_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-        # echo '| terraform lint | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
-        # echo '| terraform security | ${{ env.TF_LINT_RESULT }} |' >> $GITHUB_STEP_SUMMARY
 
   # publish-results:
   #   needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
