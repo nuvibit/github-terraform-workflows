@@ -456,51 +456,9 @@ jobs:
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| status | check |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
-
-
-  # publish-results:
-  #   needs: [terraform-fmt, terraform-docs, terratest-config, terratest-run]
-  #   runs-on: ubuntu-latest
-  #   if: ${{ success() || failure() }}
-
-  #   steps:
-      # - name: Publish Terraform Results
-      #   uses: marocchino/sticky-pull-request-comment@v2
-      #   env:
-      #     TERRAFORM_VERSION: ${{ inputs.terraform_version }}
-      #     TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-      #     TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-      #     TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-      #     TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-      #   with:
-      #     message: |
-      #       ## TERRAFORM (${{ env.TERRAFORM_VERSION }}) RESULTS
-      #       | action | status |
-      #       |---|---|
-      #       | terraform format | ${{ env.TF_FMT_RESULT }} |
-      #       | terraform docs | ${{ env.TF_DOCS_RESULT }} |
-      #       | terraform lint | ${{ env.TF_LINT_RESULT }} |
-      #       | terraform security | ${{ env.TF_LINT_RESULT }} |
-
-      #       Results for commit ${{ github.sha }}.
-
-      #       :recycle: This comment will be updated with latest results.
-
-      # - name: Download Terratest Results
-      #   uses: actions/download-artifact@v3
-      #   with:
-      #     path: artifacts
-
-      # - name: Publish Terratest Results
-      #   uses: EnricoMi/publish-unit-test-result-action@v1
-      #   with:
-      #     files: artifacts/**/*.xml
-      #     check_name: TERRATEST RESULTS
-      #     comment_title: TERRATEST RESULTS
-      #     hide_comments: all but latest
-      #     report_individual_runs: true
