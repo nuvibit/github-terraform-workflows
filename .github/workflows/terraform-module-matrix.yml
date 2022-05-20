@@ -434,8 +434,6 @@ jobs:
             echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
             exit 1
           elif [[ $test_failed == true ]]; then
-            echo '' >> $GITHUB_STEP_SUMMARY
-            echo ":x: terratest failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
