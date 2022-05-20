@@ -291,7 +291,7 @@ jobs:
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
-      terratest_status: ${{ steps.terratest_run.outcome && steps.terratest_summary.outcome }}
+      terratest_status: ${{ steps.terratest_summary.outcome }}
 
     strategy:
       max-parallel: ${{ inputs.terratest_max_parallel }}
@@ -415,21 +415,27 @@ jobs:
             exit 1
           fi
 
-          test_found=false
+          test_exists=false
+          test_failed=false
           while IFS= read -r line
           do
-            if [[ "$line" == *"PASS"* ]]; then
+            if [[ "$line" == *"--- PASS"* ]]; then
               echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
-              test_found=true
-            elif [[ "$line" == *"FAIL"* ]]; then
+              test_exists=true
+            elif [[ "$line" == *"--- FAIL"* ]]; then
               echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
-              test_found=true
+              test_exists=true
+              test_failed=true
             fi
           done < "./out/summary.log"
 
-          if [[ $test_found == false ]]; then
+          if [[ $test_exists == false ]]; then
             echo '' >> $GITHUB_STEP_SUMMARY
             echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [[ $test_failed == false ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: terratest failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
