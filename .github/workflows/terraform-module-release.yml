@@ -34,7 +34,12 @@ jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
-      semantic_status: ${{ steps.semantic.outputs.new_release_published }}
+      # semantic_status: ${{ steps.semantic.outputs.new_release_published }}
+      # semantic_last_release_version: ${{ steps.semantic.outputs.last_release_version }}
+      # semantic_new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      # semantic_new_release_major_version: ${{ steps.semantic.outputs.new_release_major_version }}
+      # semantic_new_release_minor_version: ${{ steps.semantic.outputs.new_release_minor_version }}
+      # semantic_new_release_patch_version: ${{ steps.semantic.outputs.new_release_patch_version }}
 
     steps:
       - name: Checkout
@@ -110,15 +115,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 
-  workflow-summary:
-    needs:
-      - release
-    runs-on: ubuntu-latest
-    if: ${{ always() }}
-
-    steps:
       - name: Do something when a new release published
-        if: ${{ needs.release.outputs.semantic_status == 'true' }}
+        if: ${{ always() && steps.semantic.outputs.new_release_published == 'true' }}
         run: |
           echo "previous version: ${{ steps.semantic.outputs.last_release_version }}"
           echo "new version: ${{ steps.semantic.outputs.new_release_version }}"
