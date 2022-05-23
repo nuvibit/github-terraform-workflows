@@ -310,7 +310,7 @@ jobs:
         id: apply
         working-directory: ${{ inputs.terraform_working_directory }}
         if: ${{ github.event_name == 'push' }}
-        run: terraform apply -auto-approve 2>&1 | tee /tmp/terraform.apply
+        run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
 
       - name: Get TFE Apply URL
         id: tfe_apply_url
