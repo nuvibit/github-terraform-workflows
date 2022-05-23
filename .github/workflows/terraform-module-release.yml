@@ -33,13 +33,6 @@ concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || 
 jobs:
   release:
     runs-on: ubuntu-latest
-    outputs:
-      # semantic_status: ${{ steps.semantic.outputs.new_release_published }}
-      # semantic_last_release_version: ${{ steps.semantic.outputs.last_release_version }}
-      # semantic_new_release_version: ${{ steps.semantic.outputs.new_release_version }}
-      # semantic_new_release_major_version: ${{ steps.semantic.outputs.new_release_major_version }}
-      # semantic_new_release_minor_version: ${{ steps.semantic.outputs.new_release_minor_version }}
-      # semantic_new_release_patch_version: ${{ steps.semantic.outputs.new_release_patch_version }}
 
     steps:
       - name: Checkout
