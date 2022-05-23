@@ -53,11 +53,6 @@ on:
         default: 'latest'
         required: false
         type: string
-      tfsec_directory:
-        description: 'Directory which should be scanned by tfsec'
-        default: '.'
-        required: false
-        type: string
       commit_user:
         description: 'Username which should be used for commits by github action'
         default: 'github-actions'
@@ -253,7 +248,6 @@ jobs:
           level: error
           flags: ""
           tfsec_flags: --force-all-dirs
-          working_directory: ${{ inputs.tfsec_directory }}
 
   terraform-run:
     needs:
