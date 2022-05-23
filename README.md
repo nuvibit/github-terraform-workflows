@@ -188,6 +188,7 @@ The Terraform module workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `terraform_version` | Terraform version used for Terratest | `latest` | false |
+| `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
@@ -301,6 +302,7 @@ The Terraform module workflow consists of the following steps:
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `terraform_version` | Terraform version used to format code | `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
+| `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
 | `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
 | `terratest_config_repo_ref` | Ref or branch of terratest_config_repo | `main` | false |
@@ -333,6 +335,7 @@ The Terraform module workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `toggle_branch_protection` | Temporary disable branch protection to allow release action to push updates to changelog | `true` | false |
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |

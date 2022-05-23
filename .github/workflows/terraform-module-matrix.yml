@@ -18,16 +18,16 @@ on:
         default: 'registry.terraform.io'
         required: false
         type: string
-      terratest_max_parallel:
-        description: 'Maximum number of terratest runs that should run simultaneously'
-        default: 1
-        required: false
-        type: number
       terratest_examples_path:
         description: 'Path to terratest example directory'
         default: 'examples'
         required: false
         type: string
+      terratest_max_parallel:
+        description: 'Maximum number of terratest runs that should run simultaneously'
+        default: 1
+        required: false
+        type: number
       terratest_config_repo:
         description: 'Public repo where terratest matrix json is stored'
         default: 'nuvibit/github-terratest-config'
@@ -66,11 +66,6 @@ on:
       tfsec_version:
         description: 'Tfsec version to use'
         default: 'latest'
-        required: false
-        type: string
-      tfsec_directory:
-        description: 'Directory which should be scanned by tfsec'
-        default: 'examples'
         required: false
         type: string
       commit_user:
@@ -240,12 +235,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Check For Examples
+        run: |
+          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
+            echo "could not find examples path '${{ inputs.terratest_examples_path }}' required for terratest"
+            exit 1
+          fi
       
       - name: Run TFSec
         uses: reviewdog/action-tfsec@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: ${{ inputs.terratest_examples_path }}
           tfsec_version: ${{ inputs.tfsec_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -253,7 +256,6 @@ jobs:
           level: error
           flags: ""
           tfsec_flags: --force-all-dirs
-          working_directory: ${{ inputs.tfsec_directory }}
 
   terratest-config:
     needs:
@@ -307,13 +309,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Check For Examples
-        run: |
-          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
-            echo "could not find examples directory '${{ inputs.terratest_examples_path }}' required for terratest"
-            exit 1
-          fi
 
       - name: Setup Go
         uses: actions/setup-go@v3
