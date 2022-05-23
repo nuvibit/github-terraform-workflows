@@ -330,7 +330,7 @@ jobs:
         if: ${{ steps.apply.outcome == 'failure' || steps.apply.outputs.exitcode == '1' }}
         run: exit 1
 
-  summary:
+  workflow-summary:
     needs:
       - terraform-fmt
       - terraform-docs

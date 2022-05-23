@@ -1,4 +1,4 @@
-name: TERRAFORM MODULE MATRIX
+name: TERRAFORM MODULE
 
 on:
   workflow_call:
@@ -327,7 +327,7 @@ jobs:
             exit 1
           fi
 
-  summary:
+  workflow-summary:
     needs:
       - terraform-fmt
       - terraform-docs

@@ -437,7 +437,7 @@ jobs:
             exit 1
           fi
 
-  summary:
+  workflow-summary:
     needs:
       - terraform-fmt
       - terraform-docs

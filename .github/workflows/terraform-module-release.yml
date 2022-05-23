@@ -3,6 +3,11 @@ name: TERRAFORM MODULE RELEASE
 on:
   workflow_call:
     inputs:
+      toggle_branch_protection:
+        description: 'Temporary disable branch protection to allow release action to push updates to changelog'
+        default: true
+        required: false
+        type: boolean
       semantic_version:
         description: 'Specify specifying version range for semantic-release'
         default: '18.0.0'
@@ -37,6 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check Branch Protection
+        if: ${{ inputs.toggle_branch_protection }}
         uses: octokit/request-action@v2.x
         id: get_branch_protection
         continue-on-error: true
@@ -46,7 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
       
       - name: Temporarily Disable Branch Protection
-        if: ${{ steps.get_branch_protection.outputs.status == '200' }}
+        if: ${{ inputs.toggle_branch_protection && steps.get_branch_protection.outputs.status == '200' }}
         uses: octokit/request-action@v2.x
         id: branch_protection_update
         with:
@@ -73,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable Branch Protection
-        if: ${{ always() && steps.get_branch_protection.outputs.status == '200' }}
+        if: ${{ always() && inputs.toggle_branch_protection && steps.get_branch_protection.outputs.status == '200' }}
         uses: octokit/request-action@v2.x
         with:
           route: PUT /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
@@ -100,3 +106,43 @@ jobs:
             ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_conversation_resolution.enabled) || null }}
         env:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+
+  workflow-summary:
+    needs:
+      - release
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+
+    steps:
+      - name: Do something when a new release published
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          echo "previous version: ${{ steps.semantic.outputs.last_release_version }}"
+          echo "new version: ${{ steps.semantic.outputs.new_release_version }}"
+          echo "major: ${{ steps.semantic.outputs.new_release_major_version }}"
+          echo "minor: ${{ steps.semantic.outputs.new_release_minor_version }}"
+          echo "patch: ${{ steps.semantic.outputs.new_release_patch_version }}"
+        
+      # - name: Workflow Summary
+      #   env:
+      #     TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
+      #     TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
+      #     TERRAFORM_VERSION: ${{ needs.terraform-fmt.outputs.terraform_version }}
+      #     TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+      #     TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+      #     TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+      #     TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+      #     TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
+      #     TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
+      #     TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
+      #     TF_PLAN_OR_APPLY: ${{ fromJSON('["plan", "apply"]')[github.event_name != 'push'] }}
+      #   run: |
+      #     echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+      #     echo '' >> $GITHUB_STEP_SUMMARY
+      #     echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+      #     echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+      #     echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+      #     echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+      #     echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+      #     echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+      #     echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
