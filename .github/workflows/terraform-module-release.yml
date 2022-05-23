@@ -33,6 +33,8 @@ concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || 
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      semantic_status: ${{ steps.semantic.outputs.new_release_published }}
 
     steps:
       - name: Checkout
@@ -70,6 +72,7 @@ jobs:
 
       - name: Release Terraform Module
         uses: cycjimmy/semantic-release-action@v3
+        id: semantic
         with:
           semantic_version: ${{ inputs.semantic_version }}
           branch: ${{ inputs.release_branch }}
@@ -115,14 +118,14 @@ jobs:
 
     steps:
       - name: Do something when a new release published
-        if: steps.semantic.outputs.new_release_published == 'true'
+        if: ${{ needs.release.outputs.semantic_status == 'true' }}
         run: |
           echo "previous version: ${{ steps.semantic.outputs.last_release_version }}"
           echo "new version: ${{ steps.semantic.outputs.new_release_version }}"
           echo "major: ${{ steps.semantic.outputs.new_release_major_version }}"
           echo "minor: ${{ steps.semantic.outputs.new_release_minor_version }}"
           echo "patch: ${{ steps.semantic.outputs.new_release_patch_version }}"
-        
+
       # - name: Workflow Summary
       #   env:
       #     TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
