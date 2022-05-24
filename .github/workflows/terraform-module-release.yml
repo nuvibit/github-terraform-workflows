@@ -3,6 +3,11 @@ name: TERRAFORM MODULE RELEASE
 on:
   workflow_call:
     inputs:
+      toggle_branch_protection:
+        description: 'Temporary disable branch protection to allow release action to push updates to changelog'
+        default: true
+        required: false
+        type: boolean
       semantic_version:
         description: 'Specify specifying version range for semantic-release'
         default: '18.0.0'
@@ -37,6 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check Branch Protection
+        if: ${{ inputs.toggle_branch_protection }}
         uses: octokit/request-action@v2.x
         id: get_branch_protection
         continue-on-error: true
@@ -46,9 +52,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
       
       - name: Temporarily Disable Branch Protection
-        if: ${{ steps.get_branch_protection.outputs.status == '200' }}
+        if: ${{ inputs.toggle_branch_protection && steps.get_branch_protection.outputs.status == '200' }}
         uses: octokit/request-action@v2.x
-        id: branch_protection_update
+        id: disable_branch_protection
         with:
           route: PUT /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
           required_status_checks: |
@@ -64,6 +70,7 @@ jobs:
 
       - name: Release Terraform Module
         uses: cycjimmy/semantic-release-action@v3
+        id: semantic
         with:
           semantic_version: ${{ inputs.semantic_version }}
           branch: ${{ inputs.release_branch }}
@@ -73,8 +80,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable Branch Protection
-        if: ${{ always() && steps.get_branch_protection.outputs.status == '200' }}
+        if: ${{ always() && inputs.toggle_branch_protection && steps.get_branch_protection.outputs.status == '200' }}
         uses: octokit/request-action@v2.x
+        id: enable_branch_protection
         with:
           route: PUT /repos/${{ github.repository }}/branches/${{ inputs.release_branch }}/protection
           required_status_checks: |
@@ -100,3 +108,19 @@ jobs:
             ${{ toJson(fromJson(steps.get_branch_protection.outputs.data).required_conversation_resolution.enabled) || null }}
         env:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Workflow Summary
+        if: ${{ always() }}
+        env:
+          TOGGLE_BRANCH_PROTECTION: ${{ fromJSON('[":white_check_mark:", ":x:"]')[inputs.toggle_branch_protection && steps.get_branch_protection.outputs.status == '200'] }}
+          NEW_RELEASE_PUBLISHED: ${{ fromJSON('[":white_check_mark:", ":x:"]')[steps.semantic.outputs.new_release_published != 'true'] }}
+          LAST_RELEASE_VERSION: ${{ steps.semantic.outputs.last_release_version }}
+          NEW_RELEASE_VERSION: ${{ steps.semantic.outputs.new_release_version }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.NEW_RELEASE_PUBLISHED }} | new release published |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.LAST_RELEASE_VERSION }} | last release version |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.NEW_RELEASE_VERSION }} | new release version |' >> $GITHUB_STEP_SUMMARY

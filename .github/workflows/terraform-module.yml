@@ -9,8 +9,13 @@ on:
         required: false
         type: string
       terraform_version:
-        description: 'Terraform version used for Terratest'
+        description: 'Terraform version used to format code'
         default: 'latest'
+        required: false
+        type: string
+      terratest_examples_path:
+        description: 'Path to terratest example directory'
+        default: 'examples'
         required: false
         type: string
       tflint_repo:
@@ -99,8 +104,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"
@@ -114,7 +118,8 @@ jobs:
           branch: ${{ github.event.pull_request.head.ref }}
 
   terraform-docs:
-    needs: [terraform-fmt]
+    needs:
+      - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -153,7 +158,9 @@ jobs:
           git-commit-message: "docs(terraform-docs): update readme"
 
   terraform-lint:
-    needs: [terraform-fmt, terraform-docs]
+    needs: 
+      - terraform-fmt
+      - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -188,7 +195,10 @@ jobs:
           tflint_init: true
 
   terraform-security:
-    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -200,12 +210,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Check For Examples
+        run: |
+          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
+            echo "could not find examples path '${{ inputs.terratest_examples_path }}' required for terratest"
+            exit 1
+          fi
       
       - name: Run TFSec
         uses: reviewdog/action-tfsec@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: ${{ inputs.terratest_examples_path }}
           tfsec_version: ${{ inputs.tfsec_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -214,10 +232,16 @@ jobs:
           flags: ""
           tfsec_flags: --force-all-dirs
 
-  terraform-test:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+  terratest-run:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
+    outputs:
+      terratest_status: ${{ steps.terratest_summary.outcome }}
 
     steps:
       - name: Set Git Access Token
@@ -249,7 +273,7 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
       - name: Run Terratest
-        id: terratest
+        id: terratest_run
         working-directory: ./test
         env:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
@@ -262,54 +286,72 @@ jobs:
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
-
-      - name: Upload Terratest Results
+          echo "./out/summary.log"
+      
+      - name: Terratest Summary
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: Terratest Result
-          path: |
-            **/report.xml
-          if-no-files-found: error
+        id: terratest_summary
+        working-directory: ./test
+        run: |
+          echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | test |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
 
-  publish-results:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terraform-test]
+          if [[ ! -f "./out/summary.log" ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          test_exists=false
+          test_failed=false
+          while IFS= read -r line
+          do
+            if [[ "$line" == *"--- PASS"* ]]; then
+              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+            elif [[ "$line" == *"--- FAIL"* ]]; then
+              echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+              test_failed=true
+            fi
+          done < "./out/summary.log"
+
+          if [[ $test_exists == false ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [[ $test_failed == true ]]; then
+            exit 1
+          fi
+
+  workflow-summary:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-run
     runs-on: ubuntu-latest
-    if: ${{ success() || failure() }}
+    if: ${{ always() }}
 
     steps:
-      - name: Publish Terraform Results
-        uses: marocchino/sticky-pull-request-comment@v2
+      - name: Workflow Summary
         env:
-          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-        with:
-          message: |
-            ## TERRAFORM (${{ env.TERRAFORM_VERSION }}) RESULTS
-            | action | status |
-            |---|---|
-            | terraform fmt | ${{ env.TF_FMT_RESULT }} |
-            | terraform docs | ${{ env.TF_DOCS_RESULT }} |
-            | terraform lint | ${{ env.TF_LINT_RESULT }} |
-            | terraform security | ${{ env.TF_LINT_RESULT }} |
-
-            Results for commit ${{ github.sha }}.
-
-            :recycle: This comment will be updated with latest results.
-
-      - name: Download Terratest Results
-        uses: actions/download-artifact@v3
-        with:
-          path: artifacts
-
-      - name: Publish Terratest Results
-        uses: EnricoMi/publish-unit-test-result-action@v1
-        with:
-          files: artifacts/**/*.xml
-          check_name: TERRATEST RESULTS
-          comment_title: TERRATEST RESULTS
-          hide_comments: all but latest
-          report_individual_runs: true
+          TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY

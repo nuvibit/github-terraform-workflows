@@ -93,8 +93,7 @@ jobs:
         env:
           BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
         run: |
-          if [[ ! -f $BACKEND_FILE ]]
-          then
+          if [[ ! -f $BACKEND_FILE ]]; then
             echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
             exit 1
           fi
@@ -104,8 +103,7 @@ jobs:
           # get organization name from backend file (backend 'remote' config block) via perl-regexp
           ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
 
-          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]
-          then
+          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]; then
             echo "could not get terraform cloud/enterprise organization or workspace name from '$BACKEND_FILE'"
             exit 1
           fi
@@ -119,8 +117,7 @@ jobs:
           VERSION=$(cat workspace.txt | sed -rn 's|.*"terraform-version":"([0-9.]+)".*|\1|p')
           rm workspace.txt
 
-          if [[ -z "$VERSION" ]]
-          then
+          if [[ -z "$VERSION" ]]; then
             echo "could not get terraform version from terraform cloud/enterprise workspace '$WORKSPACE' in organization '$ORGANIZATION'"
             exit 1
           fi
@@ -141,8 +138,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"
@@ -156,7 +152,8 @@ jobs:
           branch: ${{ github.event.pull_request.head.ref || github.ref }}
 
   terraform-docs:
-    needs: [terraform-fmt]
+    needs:
+      - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -184,7 +181,9 @@ jobs:
           git-commit-message: "docs(terraform-docs): update readme"
 
   terraform-lint:
-    needs: [terraform-fmt, terraform-docs]
+    needs:
+      - terraform-fmt
+      - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -220,7 +219,10 @@ jobs:
           tflint_init: true
 
   terraform-security:
-    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -248,13 +250,19 @@ jobs:
           tfsec_flags: --force-all-dirs
 
   terraform-run:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
-      tfe_run_url: ${{ steps.tfe_run_url.outputs.url }}
+      tfe_plan_url: ${{ steps.tfe_plan_url.outputs.url }}
+      tfe_apply_url: ${{ steps.tfe_apply_url.outputs.url }}
       init_status: ${{ steps.init.outcome }}
       plan_status: ${{ steps.plan.outputs.exitcode == '1' || steps.plan.outcome }}
+      apply_status: ${{ steps.apply.outputs.exitcode == '1' || steps.apply.outcome }}
 
     steps:
       - name: Set Git Access Token
@@ -286,8 +294,8 @@ jobs:
         run: terraform plan -no-color 2>&1 | tee /tmp/terraform.plan
         continue-on-error: true
 
-      - name: Get Terraform Enterprise/Cloud Run URL
-        id: tfe_run_url
+      - name: Get TFE Plan URL
+        id: tfe_plan_url
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           match=$(head -50 /tmp/terraform.plan | egrep -i 'https:\/\/.*\/runs\/run-\S+')
@@ -302,19 +310,35 @@ jobs:
         id: apply
         working-directory: ${{ inputs.terraform_working_directory }}
         if: ${{ github.event_name == 'push' }}
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
 
-  publish-results:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terraform-run]
+      - name: Get TFE Apply URL
+        id: tfe_apply_url
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          match=$(head -50 /tmp/terraform.apply | egrep -i 'https:\/\/.*\/runs\/run-\S+')
+          echo "::set-output name=url::$match"
+        continue-on-error: true
+
+      - name: Terraform Apply Outcome
+        if: ${{ steps.apply.outcome == 'failure' || steps.apply.outputs.exitcode == '1' }}
+        run: exit 1
+
+  workflow-summary:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terraform-run
     runs-on: ubuntu-latest
-    if: ${{ success() || failure() }}
+    if: ${{ always() }}
 
     steps:
-      - name: Publish Terraform Results
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: marocchino/sticky-pull-request-comment@v2
+      - name: Workflow Summary
         env:
-          TFE_RUN_URL: ${{ needs.terraform-run.outputs.tfe_run_url }}
+          TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
+          TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
           TERRAFORM_VERSION: ${{ needs.terraform-fmt.outputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
@@ -322,18 +346,15 @@ jobs:
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
           TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
           TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
-        with:
-          message: |
-            ## TERRAFORM (${{ env.TERRAFORM_VERSION }}) RESULTS
-            | action | status |
-            |---|---|
-            | terraform fmt | ${{ env.TF_FMT_RESULT }} |
-            | terraform docs | ${{ env.TF_DOCS_RESULT }} |
-            | terraform lint | ${{ env.TF_LINT_RESULT }} |
-            | terraform security | ${{ env.TF_LINT_RESULT }} |
-            | terraform init | ${{ env.TF_INIT_RESULT }} |
-            | terraform [plan](${{ env.TFE_RUN_URL }}) | ${{ env.TF_PLAN_RESULT }} |
-
-            Results for commit ${{ github.sha }}.
-
-            :recycle: This comment will be updated with latest results.
+          TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
+          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY

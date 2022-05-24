@@ -18,6 +18,11 @@ on:
         default: 'registry.terraform.io'
         required: false
         type: string
+      terratest_examples_path:
+        description: 'Path to terratest example directory'
+        default: 'examples'
+        required: false
+        type: string
       terratest_max_parallel:
         description: 'Maximum number of terratest runs that should run simultaneously'
         default: 1
@@ -124,8 +129,7 @@ jobs:
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]
-          then
+          if [[ -z $(git status -s) ]]; then
             echo "::set-output name=diff::false"
           else
             echo "::set-output name=diff::true"
@@ -139,7 +143,8 @@ jobs:
           branch: ${{ github.event.pull_request.head.ref }}
 
   terraform-docs:
-    needs: [terraform-fmt]
+    needs:
+      - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -178,7 +183,9 @@ jobs:
           git-commit-message: "docs(terraform-docs): update readme"
 
   terraform-lint:
-    needs: [terraform-fmt, terraform-docs]
+    needs: 
+      - terraform-fmt
+      - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -213,7 +220,10 @@ jobs:
           tflint_init: true
 
   terraform-security:
-    needs: [terraform-fmt, terraform-docs, terraform-lint]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -225,12 +235,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
+
+      - name: Check For Examples
+        run: |
+          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
+            echo "could not find examples path '${{ inputs.terratest_examples_path }}' required for terratest"
+            exit 1
+          fi
       
       - name: Run TFSec
         uses: reviewdog/action-tfsec@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: ${{ inputs.terratest_examples_path }}
           tfsec_version: ${{ inputs.tfsec_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -240,7 +258,11 @@ jobs:
           tfsec_flags: --force-all-dirs
 
   terratest-config:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -262,9 +284,16 @@ jobs:
           echo "::set-output name=matrix::$JSON"
 
   terratest-run:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config]
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
+    outputs:
+      terratest_status: ${{ steps.terratest_summary.outcome }}
 
     strategy:
       max-parallel: ${{ inputs.terratest_max_parallel }}
@@ -308,37 +337,31 @@ jobs:
         run: |
           for d in */; do
             # create artifact name for github action
-            artifact_name="Terratest Results (terraform=$(echo "${{ matrix.terraform_version }}" | grep -o '[0-9.]\+')"
+            artifact_name="terraform version $(echo "${{ matrix.terraform_version }}")<br>"
             # initialize terraform lock file
             touch "$d/.terraform.lock.hcl"
             # get required provider versions from matrix json
             for provider in $(jq -r 'keys | .[]' <<< $PROVIDER_JSON); do
               version=$(jq -r ".[$k]" <<< $PROVIDER_JSON)
               # get provider version if contains X from terraform registry
-              if [[ "$version" == *"X"* ]]
-              then
+              if [[ "$version" == *"X"* ]]; then
                 for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
                   i=$(echo $i | tr -d '"')
                   declare -a semver
                   semver=($(echo "$version" | tr '.' '\n'))
                   # if X is on first position
-                  if [[ "${semver[0]}" == "X" ]]
-                  then
+                  if [[ "${semver[0]}" == "X" ]]; then
                     version=$i
                     break;
                   # if X is on second position
-                  elif [[ "${semver[1]}" == "X" ]]
-                  then
-                    if [[ $i == "${semver[0]}."* ]]
-                    then
+                  elif [[ "${semver[1]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}."* ]]; then
                       version=$i
                       break;
                     fi
                   # if X is on third position
-                  elif [[ "${semver[2]}" == "X" ]]
-                  then
-                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]
-                    then
+                  elif [[ "${semver[2]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]; then
                       version=$i
                       break;
                     fi
@@ -346,16 +369,16 @@ jobs:
                 done
               fi
               # append provider versions to artifact name
-              artifact_name+=" $(echo "$provider" | sed 's:\/:\.:g')=${version}"
+              artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
               # generate terraform lock file for each provider in each terratest example directory
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
-            echo "::set-output name=artifact_name::${artifact_name})"
+            echo "::set-output name=artifact_name::${artifact_name}"
           done
 
       - name: Run Terratest
-        id: terratest
+        id: terratest_run
         working-directory: ./test
         env:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
@@ -368,54 +391,73 @@ jobs:
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
-
-      - name: Upload Terratest Results
+          echo "./out/summary.log"
+      
+      - name: Terratest Summary
         if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ steps.terraform_lock_file.outputs.artifact_name }}
-          path: |
-            **/report.xml
-          if-no-files-found: error
+        id: terratest_summary
+        working-directory: ./test
+        run: |
+          echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | test |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
 
-  publish-results:
-    needs: [terraform-fmt, terraform-docs, terraform-lint, terraform-security, terratest-config, terratest-run]
+          if [[ ! -f "./out/summary.log" ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          test_exists=false
+          test_failed=false
+          while IFS= read -r line
+          do
+            if [[ "$line" == *"--- PASS"* ]]; then
+              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+            elif [[ "$line" == *"--- FAIL"* ]]; then
+              echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+              test_failed=true
+            fi
+          done < "./out/summary.log"
+
+          if [[ $test_exists == false ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [[ $test_failed == true ]]; then
+            exit 1
+          fi
+
+  workflow-summary:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
+      - terratest-run
     runs-on: ubuntu-latest
-    if: ${{ success() || failure() }}
+    if: ${{ always() }}
 
     steps:
-      - name: Publish Terraform Results
-        uses: marocchino/sticky-pull-request-comment@v2
+      - name: Workflow Summary
         env:
-          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-        with:
-          message: |
-            ## TERRAFORM (${{ env.TERRAFORM_VERSION }}) RESULTS
-            | action | status |
-            |---|---|
-            | terraform fmt | ${{ env.TF_FMT_RESULT }} |
-            | terraform docs | ${{ env.TF_DOCS_RESULT }} |
-            | terraform lint | ${{ env.TF_LINT_RESULT }} |
-            | terraform security | ${{ env.TF_LINT_RESULT }} |
-
-            Results for commit ${{ github.sha }}.
-
-            :recycle: This comment will be updated with latest results.
-
-      - name: Download Terratest Results
-        uses: actions/download-artifact@v3
-        with:
-          path: artifacts
-
-      - name: Publish Terratest Results
-        uses: EnricoMi/publish-unit-test-result-action@v1
-        with:
-          files: artifacts/**/*.xml
-          check_name: TERRATEST RESULTS
-          comment_title: TERRATEST RESULTS
-          hide_comments: all but latest
-          report_individual_runs: true
+          TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
