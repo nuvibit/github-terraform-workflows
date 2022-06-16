@@ -63,6 +63,11 @@ on:
         default: 'noreply@github.com'
         required: false
         type: string
+      concurrency_group:
+        description: 'Name of concurrency group to manage concurrent github action runs'
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+        required: false
+        type: string
     secrets:
       GHE_API_TOKEN:
         required: true
@@ -70,7 +75,7 @@ on:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   terraform-fmt:

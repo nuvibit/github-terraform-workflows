@@ -85,6 +85,7 @@ The Terraform workspace workflow consists of the following steps:
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | `$repo_name/$branch_name/$working_dir` | false |
 <br>
 
 ### Secrets [Terraform Workspace Workflow]
@@ -192,6 +193,7 @@ The Terraform module workflow consists of the following steps:
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | `$repo_name/$branch_name` | false |
 <br>
 
 ### Secrets [Terraform Module Workflow]
@@ -216,6 +218,7 @@ The Terraform module workflow consists of the following steps:
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | `$repo_name/$branch_name` | false |
 <br>
 
 ### Secrets [Terraform Release Workflow]
@@ -310,6 +313,7 @@ The Terraform module workflow consists of the following steps:
 | `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | `$repo_name/$branch_name` | false |
 <br>
 
 ### Secrets [Terraform Module Matrix Workflow]
@@ -335,6 +339,7 @@ The Terraform module workflow consists of the following steps:
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | `$repo_name/$branch_name` | false |
 <br>
 
 ### Secrets [Terraform Release Workflow]
