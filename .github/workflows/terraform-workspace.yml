@@ -13,13 +13,8 @@ on:
         default: 'backend.tf'
         required: false
         type: string
-      tfe_workspace_version:
-        description: 'Terraform version will be queried from the terraform cloud/enterprise workspace'
-        default: true
-        required: false
-        type: boolean
       terraform_version:
-        description: 'Terraform version will be ignored if tfe_workspace_version is "true"'
+        description: 'Terraform version used for github action'
         default: 'latest'
         required: false
         type: string
@@ -81,7 +76,6 @@ jobs:
   terraform-fmt:
     runs-on: ubuntu-latest
     outputs:
-      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
@@ -92,46 +86,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Get Workspace Info
-        if: ${{ inputs.tfe_workspace_version }}
-        id: workspace_curl
-        env:
-          BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
-        run: |
-          if [[ ! -f $BACKEND_FILE ]]; then
-            echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
-            exit 1
-          fi
-
-          # get workspace name from backend file (backend 'remote' config block) via perl-regexp
-          WORKSPACE=$(grep -Pzo 'workspaces\W+\{\W+name\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
-          # get organization name from backend file (backend 'remote' config block) via perl-regexp
-          ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
-
-          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]; then
-            echo "could not get terraform cloud/enterprise organization or workspace name from '$BACKEND_FILE'"
-            exit 1
-          fi
-
-          # query terraform version from tfe workspace
-          curl \
-          --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
-          --header "Content-Type: application/vnd.api+json" \
-          https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
-          
-          VERSION=$(cat workspace.txt | sed -rn 's|.*"terraform-version":"([0-9.]+)".*|\1|p')
-          rm workspace.txt
-
-          if [[ -z "$VERSION" ]]; then
-            echo "could not get terraform version from terraform cloud/enterprise workspace '$WORKSPACE' in organization '$ORGANIZATION'"
-            exit 1
-          fi
-          echo "::set-output name=terraform_version::${VERSION}"
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+          terraform_version: ${{ inputs.terraform_version }}
 
       - name: Terraform Format
         id: fmt
@@ -227,7 +185,6 @@ jobs:
     needs:
       - terraform-fmt
       - terraform-docs
-      - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ubuntu-latest
     outputs:
@@ -282,7 +239,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ needs.terraform-fmt.outputs.terraform_version }}
+          terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: true
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
@@ -344,7 +301,7 @@ jobs:
         env:
           TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
           TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
-          TERRAFORM_VERSION: ${{ needs.terraform-fmt.outputs.terraform_version }}
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}

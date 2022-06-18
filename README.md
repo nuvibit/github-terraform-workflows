@@ -75,8 +75,7 @@ The Terraform workspace workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `tfe_backend_file` | Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory) | `backend.tf` | false |
-| `tfe_workspace_version` | Terraform version will be queried from the terraform cloud/enterprise workspace | `true` | false |
-| `terraform_version` | Terraform version to use in github action (will be ignored if tfe_workspace_version is 'true') | `latest` | false |
+| `terraform_version` | Terraform version used for github action | `latest` | false |
 | `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
@@ -184,7 +183,7 @@ The Terraform module workflow consists of the following steps:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `terraform_version` | Terraform version used for Terratest | `latest` | false |
+| `terraform_version` | Terraform version used for github action | `latest` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
@@ -299,7 +298,7 @@ The Terraform module workflow consists of the following steps:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `terraform_version` | Terraform version used to format code | `latest` | false |
+| `terraform_version` | Terraform version used for github action| `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |

@@ -9,7 +9,7 @@ on:
         required: false
         type: string
       terraform_version:
-        description: 'Terraform version used to format code'
+        description: 'Terraform version used for github action'
         default: 'latest'
         required: false
         type: string
