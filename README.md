@@ -17,18 +17,10 @@ Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or 
 
 To get started add github-terraform-workflows to an existing GitHub workflow:
 
-```yaml
-# Terraform workspace
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-workspace.yml@v1
-
-# Terraform Module (fixed version testing)
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module.yml@v1
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-
-# Terraform Module (matrix version testing)
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-matrix.yml@v1
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-```
+[Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) \
+[Terraform Workspace Workflow (Minimal)](#terraform-workspace-workflow-minimal) \
+[Terraform Module Workflow (Standard)](#terraform-module-workflow-standard) \
+[Terraform Module Workflow (Matrix)](#terraform-module-workflow-matrix) \
 <br>
 
 ## Actions
@@ -49,7 +41,7 @@ The reusable Github Workflows include the following public Github Actions:
 In addition to these Github Actions, custom scripts are executed.
 <br><br><br>
 
->## Terraform Workspace Workflow
+>## Terraform Workspace Workflow (Standard)
 
 * This workflow can be used to run Terraform code in a [Terraform workspace][tfe_workspace].
 
@@ -85,7 +77,6 @@ The Terraform workspace workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `tfe_backend_file` | Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory) | `backend.tf` | false |
 | `terraform_version` | Terraform version used inside github action | `latest` | false |
 | `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
@@ -156,7 +147,13 @@ jobs:
 ```
 <br><br>
 
->## Terraform Module Workflow (fixed version testing)
+>## Terraform Workspace Workflow (Minimal)
+
+* This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](##terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
+* This can be useful for terraform repositories that are maintained in an automated manner.
+<br><br>
+
+>## Terraform Module Workflow (Standard)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
@@ -273,7 +270,7 @@ jobs:
 ```
 <br><br>
 
->## Terraform Module Workflow (matrix version testing)
+>## Terraform Module Workflow (Matrix)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
