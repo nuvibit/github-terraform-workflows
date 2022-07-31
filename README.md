@@ -149,7 +149,7 @@ jobs:
 
 >## Terraform Workspace Workflow (Minimal)
 
-* This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](##terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
+* This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
 * This can be useful for terraform repositories that are maintained in an automated manner.
 <br><br>
 
