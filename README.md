@@ -9,6 +9,7 @@
 [![Maintained by nuvibit.com][nuvibit-shield]][nuvibit-url]
 [![Latest Release][release-shield]][release-url]
 
+<!-- DESCRIPTION -->
 Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
 <br><br>
 
@@ -415,10 +416,10 @@ See [LICENSE][license-url] for full details
 <!-- MARKDOWN LINKS & IMAGES -->
 [nuvibit-shield]: https://img.shields.io/badge/maintained%20by-nuvibit.com-%235849a6.svg?style=flat&color=1c83ba
 [nuvibit-url]: https://nuvibit.com
-[release-shield]: https://img.shields.io/github/v/release/nuvibit/cloud-demo-app?style=flat&color=success
-[release-url]: https://github.com/nuvibit/cloud-demo-app/releases
-[contributors-url]: https://github.com/nuvibit/cloud-demo-app/graphs/contributors
-[license-url]: https://github.com/nuvibit/cloud-demo-app/tree/master/LICENSE
+[release-shield]: https://img.shields.io/github/v/release/nuvibit/github-terraform-workflows?style=flat&color=success
+[release-url]: https://github.com/nuvibit/github-terraform-workflows/releases
+[contributors-url]: https://github.com/nuvibit/github-terraform-workflows/graphs/contributors
+[license-url]: https://github.com/nuvibit/github-terraform-workflows/tree/master/LICENSE
 
 [github_workflows_link]: https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions
 [tfe_intro]: https://www.terraform.io/cloud-docs
