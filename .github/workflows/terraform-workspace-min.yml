@@ -13,11 +13,6 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
-      tfe_backend_file:
-        description: 'Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory)'
-        default: 'backend.tf'
-        required: false
-        type: string
       terraform_version:
         description: 'Terraform version used inside github action'
         default: 'latest'
@@ -26,41 +21,6 @@ on:
       terraform_working_directory:
         description: 'A relative path starting with "." that Terraform will execute within (e.g. "./infrastructure")'
         default: '.'
-        required: false
-        type: string
-      tflint_repo:
-        description: 'Public repo where tflint config is stored'
-        default: 'nuvibit/github-tflint-config'
-        required: false
-        type: string
-      tflint_repo_config_path:
-        description: 'Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl")'
-        default: ''
-        required: false
-        type: string
-      tflint_repo_ref:
-        description: 'Ref or branch of tflint_repo'
-        default: 'main'
-        required: false
-        type: string
-      tflint_version:
-        description: 'Tflint version to use in github action'
-        default: 'latest'
-        required: false
-        type: string
-      tfsec_version:
-        description: 'Tfsec version to use in github action'
-        default: 'latest'
-        required: false
-        type: string
-      commit_user:
-        description: 'Username which should be used for commits by github action'
-        default: 'github-actions'
-        required: false
-        type: string
-      commit_email:
-        description: 'Email which should be used for commits by github action'
-        default: 'noreply@github.com'
         required: false
         type: string
       concurrency_group:
@@ -78,66 +38,6 @@ on:
 concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
-  terraform-lint:
-    runs-on: ${{ inputs.github_runner }}
-    outputs:
-      lint_status: ${{ steps.lint.outcome }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Get TFLint Config
-        uses: terraform-linters/tflint-load-config-action@v0
-        if: ${{ inputs.tflint_repo_config_path != '' }}
-        with:
-          source-repo: ${{ inputs.tflint_repo }}
-          source-path: ${{ inputs.tflint_repo_config_path }}
-          source-ref: ${{ inputs.tflint_repo_ref }}
-
-      - name: Run TFLint
-        uses: reviewdog/action-tflint@v1
-        id: lint
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: ${{ inputs.terraform_working_directory }}
-          tflint_version: ${{ inputs.tflint_version }}
-          reporter: github-pr-check
-          fail_on_error: true
-          filter_mode: nofilter
-          level: error
-          flags: ""
-          tflint_init: true
-
-  terraform-security:
-    runs-on: ${{ inputs.github_runner }}
-    outputs:
-      security_status: ${{ steps.security.outcome }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
-      
-      - name: Run TFSec
-        uses: reviewdog/action-tfsec@v1
-        id: security
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: ${{ inputs.terraform_working_directory }}
-          tfsec_version: ${{ inputs.tfsec_version }}
-          reporter: github-pr-check
-          fail_on_error: true
-          filter_mode: nofilter
-          level: error
-          flags: ""
-          tfsec_flags: --force-all-dirs
-
   terraform-run:
     runs-on: ${{ inputs.github_runner }}
     outputs:
@@ -209,8 +109,6 @@ jobs:
 
   workflow-summary:
     needs:
-      - terraform-lint
-      - terraform-security
       - terraform-run
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
@@ -221,8 +119,6 @@ jobs:
           TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
           TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
           TERRAFORM_VERSION: ${{ inputs.terraform_version }}
-          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
           TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
           TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
@@ -232,6 +128,4 @@ jobs:
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
