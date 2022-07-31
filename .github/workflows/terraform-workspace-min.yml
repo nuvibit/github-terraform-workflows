@@ -1,4 +1,4 @@
-name: TERRAFORM WORKSPACE
+name: TERRAFORM WORKSPACE MIN
 
 on:
   workflow_call:
@@ -78,81 +78,7 @@ on:
 concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
-  terraform-fmt:
-    runs-on: ${{ inputs.github_runner }}
-    outputs:
-      fmt_status: ${{ steps.fmt.outcome }}
-      diff_exists: ${{ steps.fmt_commit.outputs.diff }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ inputs.terraform_version }}
-
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -recursive
-        working-directory: ${{ inputs.terraform_working_directory }}
-
-      - name: Commit files
-        id: fmt_commit
-        run: |
-          git config --local user.name "${{ inputs.commit_user }}"
-          git config --local user.email "${{ inputs.commit_email }}"
-          if [[ -z $(git status -s) ]]; then
-            echo "::set-output name=diff::false"
-          else
-            echo "::set-output name=diff::true"
-          fi
-          git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
-
-      - name: Push changes
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.event.pull_request.head.ref || github.ref }}
-
-  terraform-docs:
-    needs:
-      - terraform-fmt
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
-    runs-on: ${{ inputs.github_runner }}
-    outputs:
-      docs_status: ${{ steps.docs.outcome }}
-      diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Terraform Docs
-        id: docs
-        uses: terraform-docs/gh-actions@v1.0.0
-        with:
-          working-dir: ${{ inputs.terraform_working_directory }}
-          output-file: README.md
-          output-method: inject
-          args: --sort-by required
-          git-push: true
-          git-push-user-name: ${{ inputs.commit_user }}
-          git-push-user-email: ${{ inputs.commit_email }}
-          git-commit-message: "docs(terraform-docs): update readme"
-
   terraform-lint:
-    needs:
-      - terraform-fmt
-      - terraform-docs
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
@@ -187,11 +113,6 @@ jobs:
           tflint_init: true
 
   terraform-security:
-    needs:
-      - terraform-fmt
-      - terraform-docs
-      - terraform-lint
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
@@ -218,12 +139,6 @@ jobs:
           tfsec_flags: --force-all-dirs
 
   terraform-run:
-    needs:
-      - terraform-fmt
-      - terraform-docs
-      - terraform-lint
-      - terraform-security
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       tfe_plan_url: ${{ steps.tfe_plan_url.outputs.url }}
@@ -241,7 +156,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-
+      
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -294,8 +209,6 @@ jobs:
 
   workflow-summary:
     needs:
-      - terraform-fmt
-      - terraform-docs
       - terraform-lint
       - terraform-security
       - terraform-run
@@ -308,8 +221,6 @@ jobs:
           TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
           TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
           TERRAFORM_VERSION: ${{ inputs.terraform_version }}
-          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
           TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
@@ -321,8 +232,6 @@ jobs:
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY

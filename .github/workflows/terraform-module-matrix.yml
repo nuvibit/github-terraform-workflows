@@ -3,23 +3,28 @@ name: TERRAFORM MODULE MATRIX
 on:
   workflow_call:
     inputs:
+      github_runner:
+        description: 'Name of GitHub-hosted runner or self-hosted runner'
+        default: 'ubuntu-latest'
+        required: false
+        type: string
       tfe_hostname:
         description: 'Hostname for terraform cloud/enterprise'
         default: 'app.terraform.io'
         required: false
         type: string
       terraform_version:
-        description: 'Terraform version used to format code'
+        description: 'Terraform version used for Terratest'
         default: 'latest'
         required: false
         type: string
-      registry_hostname:
-        description: 'Hostname for terraform registry used to download providers'
-        default: 'registry.terraform.io'
+      terratest_path:
+        description: 'Path to terratest directory'
+        default: 'test'
         required: false
         type: string
       terratest_examples_path:
-        description: 'Path to terratest example directory'
+        description: 'Path to terratest examples directory'
         default: 'examples'
         required: false
         type: string
@@ -78,6 +83,11 @@ on:
         default: 'noreply@github.com'
         required: false
         type: string
+      concurrency_group:
+        description: 'Name of concurrency group to manage concurrent github action runs'
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
+        required: false
+        type: string
     secrets:
       GHE_API_TOKEN:
         required: true
@@ -99,11 +109,11 @@ on:
         required: false
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
+concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   terraform-fmt:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
@@ -146,7 +156,7 @@ jobs:
     needs:
       - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       docs_status: ${{ steps.docs.outcome }}
       diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
@@ -187,7 +197,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
 
@@ -225,7 +235,7 @@ jobs:
       - terraform-docs
       - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
 
@@ -264,7 +274,7 @@ jobs:
       - terraform-lint
       - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
 
@@ -291,7 +301,7 @@ jobs:
       - terraform-security
       - terratest-config
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       terratest_status: ${{ steps.terratest_summary.outcome }}
 
@@ -314,7 +324,7 @@ jobs:
         uses: actions/setup-go@v3
 
       - name: Get Dependencies
-        working-directory: ./test
+        working-directory: ${{ inputs.terratest_path }}
         run: |
           go get -v -t -d
           wget https://github.com/gruntwork-io/terratest/releases/download/v0.40.6/terratest_log_parser_linux_amd64
@@ -331,7 +341,7 @@ jobs:
       - name: Generate Terraform Lock File
         if: ${{ matrix.provider_version != '' }}
         id: terraform_lock_file
-        working-directory: ./examples
+        working-directory: ${{ inputs.terratest_examples_path }}
         env:
           PROVIDER_JSON: ${{ toJson(matrix.provider_version) }}
         run: |
@@ -379,7 +389,7 @@ jobs:
 
       - name: Run Terratest
         id: terratest_run
-        working-directory: ./test
+        working-directory: ${{ inputs.terratest_path }}
         env:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
@@ -396,7 +406,7 @@ jobs:
       - name: Terratest Summary
         if: ${{ always() }}
         id: terratest_summary
-        working-directory: ./test
+        working-directory: ${{ inputs.terratest_path }}
         run: |
           echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
@@ -440,7 +450,7 @@ jobs:
       - terraform-security
       - terratest-config
       - terratest-run
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
 
     steps:
