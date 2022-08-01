@@ -13,11 +13,6 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
-      tfe_backend_file:
-        description: 'Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory)'
-        default: 'backend.tf'
-        required: false
-        type: string
       terraform_version:
         description: 'Terraform version used inside github action'
         default: 'latest'
@@ -279,8 +274,9 @@ jobs:
         working-directory: ${{ inputs.terraform_working_directory }}
         if: ${{ github.event_name == 'push' }}
         run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
+        continue-on-error: true
 
-      - name: Get TFE Apply URL
+      - name: Get Terraform Enterprise/Cloud Run URL
         id: tfe_apply_url
         if: ${{ github.event_name == 'push' }}
         run: |
@@ -317,6 +313,7 @@ jobs:
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
           TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
         run: |
+          tf_plan_or_apply_result=${{ fromJSON('[env.TF_PLAN_RESULT, env.TF_APPLY_RESULT]')[env.TF_PLAN_OR_APPLY != 'apply'] }}
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
@@ -325,4 +322,4 @@ jobs:
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
+          echo '| '$tf_plan_or_apply_result' | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
