@@ -341,6 +341,11 @@ jobs:
           elif [[ $test_failed == true ]]; then
             exit 1
           fi
+        continue-on-error: true
+
+      - name: Terratest Outcome
+        if: ${{ steps.terratest_summary.outcome == 'failure' || steps.terratest_summary.outputs.exitcode == '1' }}
+        run: exit 1
 
   workflow-summary:
     needs:
