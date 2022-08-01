@@ -317,9 +317,9 @@ jobs:
           echo "${{ env.TF_PLAN_RESULT }}"
           echo "${{ env.TF_APPLY_RESULT }}"
           echo "${{ env.TF_PLAN_OR_APPLY }}"
-          tf_plan_or_apply_result=$(( "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ? "${{ env.TF_APPLY_RESULT }}" : "${{ env.TF_PLAN_RESULT }}" ))
+          tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
           echo $tf_plan_or_apply_result
-          
+
         # echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
         # echo '' >> $GITHUB_STEP_SUMMARY
         # echo '| result | job |' >> $GITHUB_STEP_SUMMARY
