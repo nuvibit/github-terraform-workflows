@@ -314,7 +314,10 @@ jobs:
           TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
           # TF_PLAN_OR_APPLY_RESULT: ${{ fromJSON('[env.TF_PLAN_RESULT, env.TF_APPLY_RESULT]')[env.TF_PLAN_OR_APPLY != 'apply'] }}
         run: |
-          tf_plan_or_apply_result=${{ fromJSON('[env.TF_PLAN_RESULT, env.TF_APPLY_RESULT]')[env.TF_PLAN_OR_APPLY != 'apply'] }}
+          echo "${{ env.TF_PLAN_RESULT }}"
+          echo "${{ env.TF_APPLY_RESULT }}"
+          echo "${{ env.TF_PLAN_OR_APPLY }}"
+          tf_plan_or_apply_result="${{ fromJSON('[env.TF_PLAN_RESULT, env.TF_APPLY_RESULT]')[env.TF_PLAN_OR_APPLY != 'apply'] }}"
           echo $tf_plan_or_apply_result
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
