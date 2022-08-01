@@ -125,9 +125,9 @@ jobs:
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
           TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
         run: |
-          tf_plan_or_apply_result=${{ fromJSON('[env.TF_PLAN_RESULT, env.TF_APPLY_RESULT]')[env.TF_PLAN_OR_APPLY != 'apply'] }}
+          tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo "| $tf_plan_or_apply_result | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |" >> $GITHUB_STEP_SUMMARY
+          echo '| '$tf_plan_or_apply_result' | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
