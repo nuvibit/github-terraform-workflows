@@ -18,6 +18,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      registry_hostname:
+        description: 'Hostname for terraform registry used to download providers'
+        default: 'registry.terraform.io'
+        required: false
+        type: string
       terratest_path:
         description: 'Path to terratest directory'
         default: 'test'
