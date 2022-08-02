@@ -1,0 +1,133 @@
+name: TERRAFORM WORKSPACE MINIMAL
+
+on:
+  workflow_call:
+    inputs:
+      github_runner:
+        description: 'Name of GitHub-hosted runner or self-hosted runner'
+        default: 'ubuntu-latest'
+        required: false
+        type: string
+      tfe_hostname:
+        description: 'Hostname for terraform cloud/enterprise'
+        default: 'app.terraform.io'
+        required: false
+        type: string
+      terraform_version:
+        description: 'Terraform version used inside github action'
+        default: 'latest'
+        required: false
+        type: string
+      terraform_working_directory:
+        description: 'A relative path starting with "." that Terraform will execute within (e.g. "./infrastructure")'
+        default: '.'
+        required: false
+        type: string
+      concurrency_group:
+        description: 'Name of concurrency group to manage concurrent github action runs'
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+        required: false
+        type: string
+    secrets:
+      GHE_API_TOKEN:
+        required: true
+      TFE_API_TOKEN:
+        required: true
+
+# Ensures that only one workflow runs at a time
+concurrency: ${{ inputs.concurrency_group }}
+
+jobs:
+  terraform-run:
+    runs-on: ${{ inputs.github_runner }}
+    outputs:
+      tfe_plan_url: ${{ steps.tfe_plan_url.outputs.url }}
+      tfe_apply_url: ${{ steps.tfe_apply_url.outputs.url }}
+      init_status: ${{ steps.init.outcome }}
+      plan_status: ${{ steps.plan.outputs.exitcode == '1' || steps.plan.outcome }}
+      apply_status: ${{ steps.apply.outputs.exitcode == '1' || steps.apply.outcome }}
+
+    steps:
+      - name: Set Git Access Token
+        run: |
+          git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: true
+          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+
+      - name: Terraform Init
+        id: init
+        working-directory: ${{ inputs.terraform_working_directory }}
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        if: ${{ github.event_name == 'pull_request' }}
+        working-directory: ${{ inputs.terraform_working_directory }}
+        run: terraform plan -no-color 2>&1 | tee /tmp/terraform.plan
+        continue-on-error: true
+
+      - name: Get Terraform Enterprise/Cloud Run URL
+        id: tfe_plan_url
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          match=$(head -50 /tmp/terraform.plan | egrep -i 'https:\/\/.*\/runs\/run-\S+')
+          echo "::set-output name=url::$match"
+        continue-on-error: true
+
+      - name: Terraform Plan Outcome
+        if: ${{ steps.plan.outcome == 'failure' || steps.plan.outputs.exitcode == '1' }}
+        run: exit 1
+
+      - name: Terraform Apply
+        id: apply
+        working-directory: ${{ inputs.terraform_working_directory }}
+        if: ${{ github.event_name == 'push' }}
+        run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
+        continue-on-error: true
+
+      - name: Get Terraform Enterprise/Cloud Run URL
+        id: tfe_apply_url
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          match=$(head -50 /tmp/terraform.apply | egrep -i 'https:\/\/.*\/runs\/run-\S+')
+          echo "::set-output name=url::$match"
+        continue-on-error: true
+
+      - name: Terraform Apply Outcome
+        if: ${{ steps.apply.outcome == 'failure' || steps.apply.outputs.exitcode == '1' }}
+        run: exit 1
+
+  workflow-summary:
+    needs:
+      - terraform-run
+    runs-on: ${{ inputs.github_runner }}
+    if: ${{ always() }}
+
+    steps:
+      - name: Workflow Summary
+        env:
+          TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
+          TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
+          TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
+          TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
+          TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
+          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
+        run: |
+          tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| '$tf_plan_or_apply_result' | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY

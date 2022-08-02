@@ -1,5 +1,15 @@
-# github-terraform-workflows
+# GitHub Actions: reusable terraform workflows
 
+<!-- LOGO -->
+<a href="https://nuvibit.com">
+    <img src="https://nuvibit.com/images/logo/logo-nuvibit-square.png" alt="logo_nuvibit" title="nuvibit" align="right" width="100" />
+</a>
+
+<!-- SHIELDS -->
+[![Maintained by nuvibit.com][nuvibit-shield]][nuvibit-url]
+[![Latest Release][release-shield]][release-url]
+
+<!-- DESCRIPTION -->
 Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
 <br><br>
 
@@ -7,18 +17,10 @@ Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or 
 
 To get started add github-terraform-workflows to an existing GitHub workflow:
 
-```yaml
-# Terraform workspace
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-workspace.yml@v1
-
-# Terraform Module (fixed version testing)
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module.yml@v1
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-
-# Terraform Module (matrix version testing)
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-matrix.yml@v1
-uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-```
+[Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) \
+[Terraform Workspace Workflow (Minimal)](#terraform-workspace-workflow-minimal) \
+[Terraform Module Workflow (Standard)](#terraform-module-workflow-standard) \
+[Terraform Module Workflow (Matrix)](#terraform-module-workflow-matrix) \
 <br>
 
 ## Actions
@@ -39,7 +41,7 @@ The reusable Github Workflows include the following public Github Actions:
 In addition to these Github Actions, custom scripts are executed.
 <br><br><br>
 
->## Terraform Workspace Workflow
+>## Terraform Workspace Workflow (Standard)
 
 * This workflow can be used to run Terraform code in a [Terraform workspace][tfe_workspace].
 
@@ -73,10 +75,9 @@ The Terraform workspace workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `tfe_backend_file` | Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory) | `backend.tf` | false |
-| `tfe_workspace_version` | Terraform version will be queried from the terraform cloud/enterprise workspace | `true` | false |
-| `terraform_version` | Terraform version to use in github action (will be ignored if tfe_workspace_version is 'true') | `latest` | false |
+| `terraform_version` | Terraform version used inside github action | `latest` | false |
 | `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
@@ -146,7 +147,13 @@ jobs:
 ```
 <br><br>
 
->## Terraform Module Workflow (fixed version testing)
+>## Terraform Workspace Workflow (Minimal)
+
+* This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
+* This can be useful for terraform repositories that are maintained in an automated manner.
+<br><br>
+
+>## Terraform Module Workflow (Standard)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
@@ -182,8 +189,10 @@ The Terraform module workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `terraform_version` | Terraform version used for Terratest | `latest` | false |
+| `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
@@ -213,6 +222,7 @@ The Terraform module workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
@@ -260,7 +270,7 @@ jobs:
 ```
 <br><br>
 
->## Terraform Module Workflow (matrix version testing)
+>## Terraform Module Workflow (Matrix)
 
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
@@ -295,9 +305,11 @@ The Terraform module workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `terraform_version` | Terraform version used to format code | `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
+| `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
 | `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
@@ -331,6 +343,7 @@ The Terraform module workflow consists of the following steps:
 
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `toggle_branch_protection` | Temporary disable branch protection to allow release action to push updates to changelog | `true` | false |
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
@@ -379,6 +392,31 @@ jobs:
     secrets:
       GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
+
+<!-- AUTHORS -->
+## Authors
+
+This collection is maintained by [Nuvibit][nuvibit-url] with help from [these amazing contributors][contributors-url]
+
+<!-- LICENSE -->
+## License
+
+This collection is licensed under Apache 2.0
+<br />
+See [LICENSE][license-url] for full details
+
+<!-- COPYRIGHT -->
+<br />
+<br />
+<p align="center">Copyright &copy; 2022 Nuvibit AG</p>
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[nuvibit-shield]: https://img.shields.io/badge/maintained%20by-nuvibit.com-%235849a6.svg?style=flat&color=1c83ba
+[nuvibit-url]: https://nuvibit.com
+[release-shield]: https://img.shields.io/github/v/release/nuvibit/github-terraform-workflows?style=flat&color=success
+[release-url]: https://github.com/nuvibit/github-terraform-workflows/releases
+[contributors-url]: https://github.com/nuvibit/github-terraform-workflows/graphs/contributors
+[license-url]: https://github.com/nuvibit/github-terraform-workflows/tree/master/LICENSE
 
 [github_workflows_link]: https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions
 [tfe_intro]: https://www.terraform.io/cloud-docs

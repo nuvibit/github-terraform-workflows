@@ -3,23 +3,18 @@ name: TERRAFORM WORKSPACE
 on:
   workflow_call:
     inputs:
+      github_runner:
+        description: 'Name of GitHub-hosted runner or self-hosted runner'
+        default: 'ubuntu-latest'
+        required: false
+        type: string
       tfe_hostname:
         description: 'Hostname for terraform cloud/enterprise'
         default: 'app.terraform.io'
         required: false
         type: string
-      tfe_backend_file:
-        description: 'Name of file where terraform cloud/enterprise backend configuration is stored (inside terraform_working_directory)'
-        default: 'backend.tf'
-        required: false
-        type: string
-      tfe_workspace_version:
-        description: 'Terraform version will be queried from the terraform cloud/enterprise workspace'
-        default: true
-        required: false
-        type: boolean
       terraform_version:
-        description: 'Terraform version will be ignored if tfe_workspace_version is "true"'
+        description: 'Terraform version used inside github action'
         default: 'latest'
         required: false
         type: string
@@ -63,6 +58,11 @@ on:
         default: 'noreply@github.com'
         required: false
         type: string
+      concurrency_group:
+        description: 'Name of concurrency group to manage concurrent github action runs'
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+        required: false
+        type: string
     secrets:
       GHE_API_TOKEN:
         required: true
@@ -70,13 +70,12 @@ on:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
+concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   terraform-fmt:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
-      terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
@@ -87,46 +86,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Get Workspace Info
-        if: ${{ inputs.tfe_workspace_version }}
-        id: workspace_curl
-        env:
-          BACKEND_FILE: ${{ inputs.terraform_working_directory }}/${{ inputs.tfe_backend_file }}
-        run: |
-          if [[ ! -f $BACKEND_FILE ]]; then
-            echo "could not find terraform file '$BACKEND_FILE' with tfe backend configuration"
-            exit 1
-          fi
-
-          # get workspace name from backend file (backend 'remote' config block) via perl-regexp
-          WORKSPACE=$(grep -Pzo 'workspaces\W+\{\W+name\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
-          # get organization name from backend file (backend 'remote' config block) via perl-regexp
-          ORGANIZATION=$(grep -Pzo 'backend\W+"remote"\W+\{\W+organization\W+=\W+"\K\S+(?=")' $BACKEND_FILE)
-
-          if [[ -z "$WORKSPACE" || -z "$ORGANIZATION" ]]; then
-            echo "could not get terraform cloud/enterprise organization or workspace name from '$BACKEND_FILE'"
-            exit 1
-          fi
-
-          # query terraform version from tfe workspace
-          curl \
-          --header "Authorization: Bearer ${{ secrets.TFE_API_TOKEN }}" \
-          --header "Content-Type: application/vnd.api+json" \
-          https://${{ inputs.tfe_hostname }}/api/v2/organizations/${ORGANIZATION}/workspaces/${WORKSPACE} > workspace.txt
-          
-          VERSION=$(cat workspace.txt | sed -rn 's|.*"terraform-version":"([0-9.]+)".*|\1|p')
-          rm workspace.txt
-
-          if [[ -z "$VERSION" ]]; then
-            echo "could not get terraform version from terraform cloud/enterprise workspace '$WORKSPACE' in organization '$ORGANIZATION'"
-            exit 1
-          fi
-          echo "::set-output name=terraform_version::${VERSION}"
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ steps.workspace_curl.outputs.terraform_version || inputs.terraform_version }}
+          terraform_version: ${{ inputs.terraform_version }}
 
       - name: Terraform Format
         id: fmt
@@ -155,7 +118,7 @@ jobs:
     needs:
       - terraform-fmt
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       docs_status: ${{ steps.docs.outcome }}
       diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
@@ -185,7 +148,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
 
@@ -224,7 +187,7 @@ jobs:
       - terraform-docs
       - terraform-lint
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
 
@@ -256,7 +219,7 @@ jobs:
       - terraform-lint
       - terraform-security
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     outputs:
       tfe_plan_url: ${{ steps.tfe_plan_url.outputs.url }}
       tfe_apply_url: ${{ steps.tfe_apply_url.outputs.url }}
@@ -277,7 +240,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ needs.terraform-fmt.outputs.terraform_version }}
+          terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: true
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
@@ -294,7 +257,7 @@ jobs:
         run: terraform plan -no-color 2>&1 | tee /tmp/terraform.plan
         continue-on-error: true
 
-      - name: Get TFE Plan URL
+      - name: Get Terraform Enterprise/Cloud Run URL
         id: tfe_plan_url
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -311,8 +274,9 @@ jobs:
         working-directory: ${{ inputs.terraform_working_directory }}
         if: ${{ github.event_name == 'push' }}
         run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
+        continue-on-error: true
 
-      - name: Get TFE Apply URL
+      - name: Get Terraform Enterprise/Cloud Run URL
         id: tfe_apply_url
         if: ${{ github.event_name == 'push' }}
         run: |
@@ -331,7 +295,7 @@ jobs:
       - terraform-lint
       - terraform-security
       - terraform-run
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
 
     steps:
@@ -339,7 +303,7 @@ jobs:
         env:
           TFE_PLAN_URL: ${{ needs.terraform-run.outputs.tfe_plan_url }}
           TFE_APPLY_URL: ${{ needs.terraform-run.outputs.tfe_apply_url }}
-          TERRAFORM_VERSION: ${{ needs.terraform-fmt.outputs.terraform_version }}
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
@@ -349,6 +313,7 @@ jobs:
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
           TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
         run: |
+          tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
@@ -357,4 +322,4 @@ jobs:
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_PLAN_RESULT || env.TF_APPLY_RESULT }} | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY
+          echo '| '$tf_plan_or_apply_result' | terraform [${{ env.TF_PLAN_OR_APPLY }}](${{ env.TFE_PLAN_URL || env.TFE_APPLY_URL }}) |' >> $GITHUB_STEP_SUMMARY

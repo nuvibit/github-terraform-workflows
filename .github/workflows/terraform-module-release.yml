@@ -3,6 +3,11 @@ name: TERRAFORM MODULE RELEASE
 on:
   workflow_call:
     inputs:
+      github_runner:
+        description: 'Name of GitHub-hosted runner or self-hosted runner'
+        default: 'ubuntu-latest'
+        required: false
+        type: string
       toggle_branch_protection:
         description: 'Temporary disable branch protection to allow release action to push updates to changelog'
         default: true
@@ -23,16 +28,21 @@ on:
         default: 'main'
         required: false
         type: string
+      concurrency_group:
+        description: 'Name of concurrency group to manage concurrent github action runs'
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
+        required: false
+        type: string
     secrets:
       GHE_API_TOKEN:
         required: true
 
 # Ensures that only one workflow runs at a time
-concurrency: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
+concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner }}
 
     steps:
       - name: Checkout
