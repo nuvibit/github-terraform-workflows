@@ -249,7 +249,7 @@ jobs:
       - name: Check For Examples
         run: |
           if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
-            echo "could not find examples path '${{ inputs.terratest_examples_path }}' required for terratest"
+            echo "could not find required examples path '${{ inputs.terratest_examples_path }}' for terratest"
             exit 1
           fi
       
