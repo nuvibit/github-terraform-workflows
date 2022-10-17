@@ -160,7 +160,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
-        uses: terraform-linters/tflint-load-config-action@v0
+        uses: terraform-linters/tflint-load-config-action@v1
         if: ${{ inputs.tflint_repo_config_path != '' }}
         with:
           source-repo: ${{ inputs.tflint_repo }}
