@@ -120,9 +120,9 @@ jobs:
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
           if [[ -z $(git status -s) ]]; then
-            echo "::set-output name=diff::false"
+            echo "diff=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=diff::true"
+            echo "diff=true" >> $GITHUB_OUTPUT
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
@@ -152,9 +152,9 @@ jobs:
         id: check_submodules
         run: |
           if [[ -d "./modules" ]]; then
-              echo "::set-output name=dir_exists::true"
+              echo "dir_exists=true" >> $GITHUB_OUTPUT
           else
-              echo "::set-output name=dir_exists::false"
+              echo "dir_exists=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Terraform Docs

@@ -145,9 +145,9 @@ jobs:
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
           if [[ -z $(git status -s) ]]; then
-            echo "::set-output name=diff::false"
+              echo "diff=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=diff::true"
+              echo "diff=true" >> $GITHUB_OUTPUT
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
@@ -177,9 +177,9 @@ jobs:
         id: check_submodules
         run: |
           if [[ -d "./modules" ]]; then
-              echo "::set-output name=dir_exists::true"
+              echo "dir_exists=true" >> $GITHUB_OUTPUT
           else
-              echo "::set-output name=dir_exists::false"
+              echo "dir_exists=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Run Terraform Docs
@@ -296,7 +296,7 @@ jobs:
         id: set_matrix
         run: |
           JSON=$(jq -r @json <<< cat ${{ inputs.terratest_config_repo_path }})
-          echo "::set-output name=matrix::$JSON"
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
 
   terratest-run:
     needs:
@@ -389,7 +389,7 @@ jobs:
               echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
-            echo "::set-output name=artifact_name::${artifact_name}"
+            echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
           done
 
       - name: Run Terratest

@@ -102,9 +102,9 @@ jobs:
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
           if [[ -z $(git status -s) ]]; then
-            echo "::set-output name=diff::false"
+            echo "diff=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=diff::true"
+            echo "diff=true" >> $GITHUB_OUTPUT
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
@@ -262,7 +262,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           match=$(head -50 /tmp/terraform.plan | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Plan Outcome
@@ -281,7 +281,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         run: |
           match=$(head -50 /tmp/terraform.apply | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Apply Outcome
@@ -311,7 +311,7 @@ jobs:
           TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
           TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
-          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
+          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
         run: |
           tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY

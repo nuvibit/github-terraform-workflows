@@ -82,7 +82,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           match=$(head -50 /tmp/terraform.plan | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Plan Outcome
@@ -101,7 +101,7 @@ jobs:
         if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
         run: |
           match=$(head -50 /tmp/terraform.apply | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Apply Outcome
