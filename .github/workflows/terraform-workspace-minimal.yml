@@ -82,7 +82,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           match=$(head -50 /tmp/terraform.plan | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Plan Outcome
@@ -92,16 +92,16 @@ jobs:
       - name: Terraform Apply
         id: apply
         working-directory: ${{ inputs.terraform_working_directory }}
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
         run: terraform apply -auto-approve -no-color 2>&1 | tee /tmp/terraform.apply
         continue-on-error: true
 
       - name: Get Terraform Enterprise/Cloud Run URL
         id: tfe_apply_url
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
         run: |
           match=$(head -50 /tmp/terraform.apply | egrep -i 'https:\/\/.*\/runs\/run-\S+')
-          echo "::set-output name=url::$match"
+          echo "url=$match" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Terraform Apply Outcome
@@ -123,7 +123,7 @@ jobs:
           TF_INIT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.init_status != 'success'] }}
           TF_PLAN_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.plan_status != 'success'] }}
           TF_APPLY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
-          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[github.event_name != 'push'] }}
+          TF_PLAN_OR_APPLY: ${{ fromJSON('["apply", "plan"]')[needs.terraform-run.outputs.apply_status != 'success'] }}
         run: |
           tf_plan_or_apply_result=$([ "${{ env.TF_PLAN_OR_APPLY }}" == "apply" ] && echo "${{ env.TF_APPLY_RESULT }}" || echo "${{ env.TF_PLAN_RESULT }}")
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
