@@ -10,7 +10,9 @@
 [![Latest Release][release-shield]][release-url]
 
 <!-- DESCRIPTION -->
-Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
+Reusable [GitHub Workflows][github_workflows_link] to run state-of-the-art Terraform pipelines in combination with [Terraform Enterprise or Cloud][tfe_intro].<br>
+Static code checks such as format, lint, and security best practices are performed within Github Actions, and Terraform Plan and Apply are forwarded to Terraform Enterprise or Cloud via API.<br>
+This workflow can also be used to test Terraform modules with [Terratest](https://terratest.gruntwork.io/) and can automatically release new module versions.
 <br><br>
 
 <!-- DIAGRAM -->
