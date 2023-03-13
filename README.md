@@ -1,8 +1,8 @@
-# GitHub Actions: reusable terraform workflows
+# GitHub Actions - Reusable Terraform Workflows
 
 <!-- LOGO -->
 <a href="https://nuvibit.com">
-    <img src="https://nuvibit.com/images/logo/logo-nuvibit-square.png" alt="logo_nuvibit" title="nuvibit" align="right" width="100" />
+    <img src="https://nuvibit.com/images/logo/logo-nuvibit-badge.png" alt="nuvibit logo" title="nuvibit" align="right" width="100" />
 </a>
 
 <!-- SHIELDS -->
@@ -10,21 +10,35 @@
 [![Latest Release][release-shield]][release-url]
 
 <!-- DESCRIPTION -->
-Reusable [GitHub Workflows][github_workflows_link] for [Terraform Enterprise or Cloud][tfe_intro].
+Reusable [GitHub Workflows][github_workflows_link] to run state-of-the-art Terraform pipelines.
+Static code checks such as format, documentation, lint, and security best practices are performed within Github Actions, and Terraform Plan and Apply are forwarded to [Terraform Enterprise or Cloud][tfe_intro] via API.
+These workflows can also be used to test Terraform modules with [Terratest](https://terratest.gruntwork.io/) and can automatically release new module versions.
+<br><br>
+
+<!-- DIAGRAM -->
+## Terraform Workspace Workflow
+![Terraform Workspace Diagram][workspace-diagram]
+
+## Terraform Module Workflow
+![Terraform Module Diagram][module-diagram]
 <br><br>
 
 ## Quick Start
-
 To get started add github-terraform-workflows to an existing GitHub workflow:
 
-[Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) \
-[Terraform Workspace Workflow (Minimal)](#terraform-workspace-workflow-minimal) \
-[Terraform Module Workflow (Standard)](#terraform-module-workflow-standard) \
-[Terraform Module Workflow (Matrix)](#terraform-module-workflow-matrix) \
-<br>
+- [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard)
+- [Terraform Workspace Workflow (Minimal)](#terraform-workspace-workflow-minimal)
+- [Terraform Module Workflow (Standard)](#terraform-module-workflow-standard)
+- [Terraform Module Workflow (Matrix)](#terraform-module-workflow-matrix)
+<br><br>
 
-## Actions
+## Configuration Repositories (optional)
+- [`github-tflint-config`](https://github.com/nuvibit/github-tflint-config)
+- [`github-terratest-config`](https://github.com/nuvibit/github-terratest-config)
+- [`github-terraform-semantic-release-config`](https://github.com/nuvibit/github-terraform-semantic-release-config)
+<br><br>
 
+## Referenced Github Actions
 The reusable Github Workflows include the following public Github Actions:
 
 - [`@actions/checkout`](https://github.com/actions/checkout)
@@ -38,21 +52,18 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@terraform-docs/gh-actions`](https://github.com/terraform-docs/gh-actions)
 - [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
 
-In addition to these Github Actions, custom scripts are executed.
+In addition to these Github Actions, custom bash scripts are run to avoid using [unverified actions](https://docs.github.com/de/apps/publishing-apps-to-github-marketplace/github-marketplace-overview/about-marketplace-badges#for-github-actions).
 <br><br><br>
 
 >## Terraform Workspace Workflow (Standard)
-
 * This workflow can be used to run Terraform code in a [Terraform workspace][tfe_workspace].
 
 ### :exclamation: Requirements
-
 * A Terraform Enterprise or Cloud workspace is required.
 * The Terraform workspace should be configured for [CLI runs][tfe_cli_run].
 * The terraform repository should contain a [remote backend][tfe_remote_backend].
 
 ### Workflow Steps
-
 The Terraform workspace workflow consists of the following steps:
 
 `On Pull Request Event`
@@ -72,7 +83,6 @@ The Terraform workspace workflow consists of the following steps:
 <br><br>
 
 ### Inputs [Terraform Workspace Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
@@ -89,14 +99,12 @@ The Terraform workspace workflow consists of the following steps:
 <br>
 
 ### Secrets [Terraform Workspace Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 | `TFE_API_TOKEN` | Terraform Enterprise/Cloud API Token is required to authenticate with Terraform workspace | `""` | true |
 
 ### Usage [Terraform Workspace Workflow]
-
 ```yaml
 name: TERRAFORM WORKSPACE
 
@@ -120,7 +128,6 @@ jobs:
 ```
 
 ### Usage [Terraform Workspace Workflow + custom working directory]
-
 ```yaml
 name: TERRAFORM WORKSPACE PRODUCTION
 on:
@@ -148,19 +155,16 @@ jobs:
 <br><br>
 
 >## Terraform Workspace Workflow (Minimal)
-
 * This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
 * This can be useful for terraform repositories that are maintained in an automated manner.
 <br><br>
 
 >## Terraform Module Workflow (Standard)
-
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
 * This workflow tests a specific or latest Terraform version.
 
 ### :exclamation: Requirements
-
 * An AWS account or Azure subscription is required to run Terratest.
 * For this workflow a Terraform Enterprise or Cloud workspace is required.
 * The Terraform workspace should be configured for [local runs][tfe_local_runs].
@@ -168,7 +172,6 @@ jobs:
 * [Semantic release config file][semantic_config] is required.
 
 ### Workflow Steps
-
 The Terraform module workflow consists of the following steps:
 
 `On Pull Request Event`
@@ -186,7 +189,6 @@ The Terraform module workflow consists of the following steps:
 <br><br>
 
 ### Inputs [Terraform Module Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
@@ -204,7 +206,6 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Secrets [Terraform Module Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
@@ -219,7 +220,6 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Inputs [Terraform Release Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
@@ -229,14 +229,12 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Secrets [Terraform Release Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 
 
 ### Usage [Terraform Module + Release Workflow]
-
 ```yaml
 name: TERRAFORM MODULE
 
@@ -271,20 +269,17 @@ jobs:
 <br><br>
 
 >## Terraform Module Workflow (Matrix)
-
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
 * This workflow uses a [matrix strategy][github_matrix] to allow testing of different Terraform versions.
 
 ### :exclamation: Requirements
-
 * An AWS account or Azure subscription is required to run Terratest.
 * For this workflow a Terraform Enterprise or Cloud workspace is required.
 * The Terraform workspace should be configured for [local runs][tfe_local_runs].
 * The terraform repository should contain a [remote backend][tfe_remote_backend].
 
 ### Workflow Steps
-
 The Terraform module workflow consists of the following steps:
 
 `On Pull Request Event`
@@ -302,7 +297,6 @@ The Terraform module workflow consists of the following steps:
 <br><br>
 
 ### Inputs [Terraform Module Matrix Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
@@ -325,7 +319,6 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Secrets [Terraform Module Matrix Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
@@ -340,7 +333,6 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Inputs [Terraform Release Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
@@ -351,14 +343,12 @@ The Terraform module workflow consists of the following steps:
 <br>
 
 ### Secrets [Terraform Release Workflow]
-
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
 <br>
 
 ### Usage [Terraform Module Matrix + Release Workflow]
-
 ```yaml
 name: TERRAFORM MODULE
 
@@ -395,12 +385,10 @@ jobs:
 
 <!-- AUTHORS -->
 ## Authors
-
 This collection is maintained by [Nuvibit][nuvibit-url] with help from [these amazing contributors][contributors-url]
 
 <!-- LICENSE -->
 ## License
-
 This collection is licensed under Apache 2.0
 <br />
 See [LICENSE][license-url] for full details
@@ -408,7 +396,7 @@ See [LICENSE][license-url] for full details
 <!-- COPYRIGHT -->
 <br />
 <br />
-<p align="center">Copyright &copy; 2022 Nuvibit AG</p>
+<p align="center">Copyright &copy; 2023 Nuvibit AG</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [nuvibit-shield]: https://img.shields.io/badge/maintained%20by-nuvibit.com-%235849a6.svg?style=flat&color=1c83ba
@@ -417,6 +405,8 @@ See [LICENSE][license-url] for full details
 [release-url]: https://github.com/nuvibit/github-terraform-workflows/releases
 [contributors-url]: https://github.com/nuvibit/github-terraform-workflows/graphs/contributors
 [license-url]: https://github.com/nuvibit/github-terraform-workflows/tree/master/LICENSE
+[workspace-diagram]: https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/workspace-diagram.png?raw=true
+[module-diagram]: https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/module-diagram.png?raw=true
 
 [github_workflows_link]: https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions
 [tfe_intro]: https://www.terraform.io/cloud-docs
