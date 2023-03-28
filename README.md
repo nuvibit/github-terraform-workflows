@@ -16,11 +16,8 @@ These workflows can also be used to test Terraform modules with [Terratest](http
 <br><br>
 
 <!-- DIAGRAM -->
-## Terraform Workspace Workflow
-![Terraform Workspace Diagram][workspace-diagram]
-
-## Terraform Module Workflow
-![Terraform Module Diagram][module-diagram]
+## Terraform Workflow
+![Terraform Workflow Diagram][terraform-workflow]
 <br><br>
 
 ## Quick Start
@@ -405,8 +402,7 @@ See [LICENSE][license-url] for full details
 [release-url]: https://github.com/nuvibit/github-terraform-workflows/releases
 [contributors-url]: https://github.com/nuvibit/github-terraform-workflows/graphs/contributors
 [license-url]: https://github.com/nuvibit/github-terraform-workflows/tree/master/LICENSE
-[workspace-diagram]: https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/workspace-diagram.png?raw=true
-[module-diagram]: https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/module-diagram.png?raw=true
+[terraform-workflow]: https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/terraform-workflow.png?raw=true
 
 [github_workflows_link]: https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions
 [tfe_intro]: https://www.terraform.io/cloud-docs
