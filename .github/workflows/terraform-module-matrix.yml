@@ -390,7 +390,6 @@ jobs:
                 if [[ $count == 1 ]]; then
                   version="$version.0"
                 fi
-                echo "aws provider version from requirements: $version"
               fi
               # append provider versions to artifact name
               artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
