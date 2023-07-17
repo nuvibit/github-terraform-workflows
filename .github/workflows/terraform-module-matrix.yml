@@ -382,6 +382,14 @@ jobs:
                     fi
                   fi
                 done
+              elif [[ "$version" == "FROM_REQUIREMENTS" ]]; then
+                version_match=$(grep -zoP 'required_providers\W*\{\W*aws(.|\n)*?version\W*\"\D*?(\d+\.\d+\.?\d*)\"' $GITHUB_WORKSPACE/*.tf | grep -zoP '[\d+\.]*\"$')
+                version=$(echo $version_match | grep -zoP '[\d\.]+')
+                num="${version//[^.]}"
+                count="${#num}"
+                if [[ $count == 1 ]]; then
+                  version="$version.0"
+                fi
               fi
               # append provider versions to artifact name
               artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
