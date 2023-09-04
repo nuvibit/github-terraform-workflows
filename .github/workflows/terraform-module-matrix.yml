@@ -125,7 +125,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
@@ -168,7 +168,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
@@ -208,7 +208,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
@@ -246,7 +246,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
@@ -286,7 +286,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ inputs.terratest_config_repo_path != '' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ inputs.terratest_config_repo }}
           ref: ${{ inputs.terratest_config_repo_ref }}
@@ -320,7 +320,7 @@ jobs:
           git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}

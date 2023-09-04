@@ -53,7 +53,7 @@ jobs:
           git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
       
