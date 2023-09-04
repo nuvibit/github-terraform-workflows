@@ -79,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Release Terraform Module
-        uses: cycjimmy/semantic-release-action@v3
+        uses: cycjimmy/semantic-release-action@v4
         id: semantic
         with:
           semantic_version: ${{ inputs.semantic_version }}
