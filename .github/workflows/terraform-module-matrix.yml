@@ -131,7 +131,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
 
@@ -336,7 +336,7 @@ jobs:
           chmod +x terratest_log_parser_linux_amd64
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ matrix.terraform_version }}
           terraform_wrapper: false
