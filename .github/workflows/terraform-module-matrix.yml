@@ -326,7 +326,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
 
       - name: Get Dependencies
         working-directory: ${{ inputs.terratest_path }}
