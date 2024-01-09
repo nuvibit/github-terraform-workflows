@@ -220,6 +220,7 @@ jobs:
           source-repo: ${{ inputs.tflint_repo }}
           source-path: ${{ inputs.tflint_repo_config_path }}
           source-ref: ${{ inputs.tflint_repo_ref }}
+          destination-path: .tflint.hcl
 
       - name: Run TFLint
         uses: reviewdog/action-tflint@v1
