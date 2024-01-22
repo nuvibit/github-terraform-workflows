@@ -87,7 +87,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
 
@@ -109,7 +109,7 @@ jobs:
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
       - name: Push changes
-        uses: ad-m/github-push-action@v0.6.0
+        uses: ad-m/github-push-action@v0.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.event.pull_request.head.ref || github.ref }}
@@ -239,7 +239,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: true
