@@ -1,4 +1,4 @@
-name: TERRAFORM MODULE
+name: TERRAFORM VCS
 
 on:
   workflow_call:
@@ -8,24 +8,14 @@ on:
         default: 'ubuntu-latest'
         required: false
         type: string
-      tfe_hostname:
-        description: 'Hostname for terraform cloud/enterprise'
-        default: 'app.terraform.io'
-        required: false
-        type: string
       terraform_version:
-        description: 'Terraform version used for Terratest'
+        description: 'Terraform version used inside github action'
         default: 'latest'
         required: false
         type: string
-      terratest_path:
-        description: 'Path to terratest directory'
-        default: 'test'
-        required: false
-        type: string
-      terratest_examples_path:
-        description: 'Path to terratest example directory'
-        default: 'examples'
+      terraform_working_directory:
+        description: 'A relative path starting with "." that Terraform will execute within (e.g. "./infrastructure")'
+        default: '.'
         required: false
         type: string
       tflint_repo:
@@ -44,12 +34,12 @@ on:
         required: false
         type: string
       tflint_version:
-        description: 'Tflint version to use'
+        description: 'Tflint version to use in github action'
         default: 'latest'
         required: false
         type: string
       tfsec_version:
-        description: 'Tfsec version to use'
+        description: 'Tfsec version to use in github action'
         default: 'latest'
         required: false
         type: string
@@ -65,28 +55,12 @@ on:
         type: string
       concurrency_group:
         description: 'Name of concurrency group to manage concurrent github action runs'
-        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}
+        default: ${{ github.repository }}/${{ github.event.pull_request.head.ref || github.ref }}/${{ inputs.terraform_working_directory }}
         required: false
         type: string
     secrets:
       GHE_API_TOKEN:
         required: true
-      TFE_API_TOKEN:
-        required: true
-      TERRATEST_AWS_DEFAULT_REGION:
-        required: false
-      TERRATEST_AWS_ACCESS_KEY_ID:
-        required: false
-      TERRATEST_AWS_SECRET_ACCESS_KEY:
-        required: false
-      TERRATEST_ARM_SUBSCRIPTION_ID:
-        required: false
-      TERRATEST_ARM_TENANT_ID:
-        required: false
-      TERRATEST_ARM_CLIENT_ID:
-        required: false
-      TERRATEST_ARM_CLIENT_SECRET:
-        required: false
 
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
@@ -102,7 +76,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Terraform
@@ -113,8 +87,9 @@ jobs:
       - name: Terraform Format
         id: fmt
         run: terraform fmt -recursive
+        working-directory: ${{ inputs.terraform_working_directory }}
 
-      - name: Commit Changes
+      - name: Commit files
         id: fmt_commit
         run: |
           git config --local user.name "${{ inputs.commit_user }}"
@@ -126,11 +101,11 @@ jobs:
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
-      - name: Push Changes
+      - name: Push changes
         uses: ad-m/github-push-action@v0.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.event.pull_request.head.ref }}
+          branch: ${{ github.event.pull_request.head.ref || github.ref }}
 
   terraform-docs:
     needs:
@@ -145,25 +120,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Check For Submodules
-        id: check_submodules
-        run: |
-          if [[ -d "./modules" ]]; then
-              echo "dir_exists=true" >> $GITHUB_OUTPUT
-          else
-              echo "dir_exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run Terraform Docs
+      - name: Terraform Docs
         id: docs
         uses: terraform-docs/gh-actions@v1.0.0
         with:
-          working-dir: .
-          recursive: ${{ steps.check_submodules.outputs.dir_exists }}
-          recursive-path: modules
+          working-dir: ${{ inputs.terraform_working_directory }}
           output-file: README.md
           output-method: inject
           args: --sort-by required
@@ -173,7 +137,7 @@ jobs:
           git-commit-message: "docs(terraform-docs): update readme"
 
   terraform-lint:
-    needs: 
+    needs:
       - terraform-fmt
       - terraform-docs
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
@@ -185,7 +149,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
@@ -202,6 +166,7 @@ jobs:
         id: lint
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          working_directory: ${{ inputs.terraform_working_directory }}
           tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -224,22 +189,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Check For Examples
-        run: |
-          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
-            echo "could not find required examples path '${{ inputs.terratest_examples_path }}' for terratest"
-            exit 1
-          fi
       
       - name: Run TFSec
         uses: reviewdog/action-tfsec@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: ${{ inputs.terratest_examples_path }}
+          working_directory: ${{ inputs.terraform_working_directory }}
           tfsec_version: ${{ inputs.tfsec_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -248,125 +206,23 @@ jobs:
           flags: ""
           tfsec_flags: --force-all-dirs
 
-  terratest-run:
-    needs:
-      - terraform-fmt
-      - terraform-docs
-      - terraform-lint
-      - terraform-security
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
-    runs-on: ${{ inputs.github_runner }}
-    outputs:
-      terratest_status: ${{ steps.terratest_summary.outcome }}
-
-    steps:
-      - name: Set Git Access Token
-        run: |
-          git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-
-      - name: Get Dependencies
-        working-directory: ${{ inputs.terratest_path }}
-        run: |
-          go get -v -t -d
-          wget https://github.com/gruntwork-io/terratest/releases/download/v0.40.6/terratest_log_parser_linux_amd64
-          chmod +x terratest_log_parser_linux_amd64
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform_version }}
-          terraform_wrapper: false
-          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
-          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
-
-      - name: Run Terratest
-        id: terratest_run
-        working-directory: ${{ inputs.terratest_path }}
-        env:
-          AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.TERRATEST_ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.TERRATEST_ARM_TENANT_ID }}
-          ARM_CLIENT_ID: ${{ secrets.TERRATEST_ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.TERRATEST_ARM_CLIENT_SECRET }}
-        run: |
-          go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
-          test ${PIPESTATUS[0]} -eq 0
-          echo "./out/summary.log"
-        continue-on-error: true
-      
-      - name: Terratest Summary
-        if: ${{ always() }}
-        id: terratest_summary
-        working-directory: ${{ inputs.terratest_path }}
-        run: |
-          echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '| result | test |' >> $GITHUB_STEP_SUMMARY
-          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-
-          if [[ ! -f "./out/summary.log" ]]; then
-            echo '' >> $GITHUB_STEP_SUMMARY
-            echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          test_exists=false
-          test_failed=false
-          while IFS= read -r line
-          do
-            if [[ "$line" == *"--- PASS"* ]]; then
-              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
-              test_exists=true
-            elif [[ "$line" == *"--- FAIL"* ]]; then
-              echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
-              test_exists=true
-              test_failed=true
-            fi
-          done < "./out/summary.log"
-
-          if [[ $test_exists == false ]]; then
-            echo '' >> $GITHUB_STEP_SUMMARY
-            echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          elif [[ $test_failed == true ]]; then
-            exit 1
-          fi
-        continue-on-error: true
-
-      - name: Terratest Outcome
-        if: ${{ steps.terratest_summary.outcome == 'failure' || steps.terratest_summary.outputs.exitcode == '1' }}
-        run: exit 1
-
   workflow-summary:
     needs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
       - terraform-security
-      - terratest-run
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
 
     steps:
       - name: Workflow Summary
         env:
+          TERRAFORM_VERSION: ${{ inputs.terraform_version }}
           TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
           TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
           TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
           TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-          TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
@@ -376,4 +232,3 @@ jobs:
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
