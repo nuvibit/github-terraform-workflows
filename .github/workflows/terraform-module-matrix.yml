@@ -73,8 +73,8 @@ on:
         default: 'latest'
         required: false
         type: string
-      tfsec_version:
-        description: 'Tfsec version to use'
+      trivy_version:
+        description: 'Trivy version to use'
         default: 'latest'
         required: false
         type: string
@@ -259,19 +259,19 @@ jobs:
             exit 1
           fi
       
-      - name: Run TFSec
-        uses: reviewdog/action-tfsec@v1
+      - name: Run Trivy
+        uses: reviewdog/action-trivy@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ inputs.terratest_examples_path }}
-          tfsec_version: ${{ inputs.tfsec_version }}
+          trivy_version: ${{ inputs.trivy_version }}
           reporter: github-pr-check
           fail_on_error: true
           filter_mode: nofilter
           level: error
           flags: ""
-          tfsec_flags: --force-all-dirs
+          trivy_flags: --force-all-dirs
 
   terratest-config:
     needs:

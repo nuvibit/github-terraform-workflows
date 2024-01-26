@@ -38,8 +38,8 @@ on:
         default: 'latest'
         required: false
         type: string
-      tfsec_version:
-        description: 'Tfsec version to use in github action'
+      trivy_version:
+        description: 'Trivy version to use in github action'
         default: 'latest'
         required: false
         type: string
@@ -192,19 +192,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
       
-      - name: Run TFSec
-        uses: reviewdog/action-tfsec@v1
+      - name: Run Trivy
+        uses: reviewdog/action-trivy@v1
         id: security
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ inputs.terraform_working_directory }}
-          tfsec_version: ${{ inputs.tfsec_version }}
+          trivy_version: ${{ inputs.trivy_version }}
           reporter: github-pr-check
           fail_on_error: true
           filter_mode: nofilter
           level: error
           flags: ""
-          tfsec_flags: --force-all-dirs
+          trivy_flags: --force-all-dirs
 
   workflow-summary:
     needs:
