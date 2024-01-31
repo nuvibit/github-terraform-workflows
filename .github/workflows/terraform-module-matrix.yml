@@ -265,13 +265,15 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ inputs.terratest_examples_path }}
-          trivy_version: ${{ inputs.trivy_version }}
           reporter: github-pr-check
           fail_on_error: true
           filter_mode: nofilter
           level: error
           flags: ""
-          trivy_flags: --force-all-dirs
+          trivy_flags: ""
+          trivy_command: config
+          trivy_target: .
+          trivy_version: ${{ inputs.trivy_version }}
 
   terratest-config:
     needs:
