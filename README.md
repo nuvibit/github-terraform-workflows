@@ -45,7 +45,7 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@hashicorp/setup-terraform`](https://github.com/hashicorp/setup-terraform)
 - [`@octokit/request-action`](https://github.com/octokit/request-action)
 - [`@reviewdog/action-tflint`](https://github.com/reviewdog/action-tflint)
-- [`@reviewdog/action-tfsec`](https://github.com/reviewdog/action-tfsec)
+- [`@reviewdog/action-trivy`](https://github.com/reviewdog/action-trivy)
 - [`@terraform-docs/gh-actions`](https://github.com/terraform-docs/gh-actions)
 - [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
 
@@ -90,7 +90,7 @@ The Terraform workspace workflow consists of the following steps:
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
-| `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `trivy_version` | Trivy version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
@@ -197,7 +197,7 @@ The Terraform module workflow consists of the following steps:
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
-| `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `trivy_version` | Trivy version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
@@ -310,7 +310,7 @@ The Terraform module workflow consists of the following steps:
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `lastest` | false |
-| `tfsec_version` | Tfsec version to use in github action | `lastest` | false |
+| `trivy_version` | Trivy version to use in github action | `lastest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 <br>
