@@ -132,7 +132,7 @@ jobs:
 
       - name: Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.0.0
+        uses: terraform-docs/gh-actions@v1.1.0
         with:
           working-dir: ${{ inputs.terraform_working_directory }}
           output-file: README.md

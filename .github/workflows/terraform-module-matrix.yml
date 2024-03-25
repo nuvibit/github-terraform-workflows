@@ -184,7 +184,7 @@ jobs:
 
       - name: Run Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.0.0
+        uses: terraform-docs/gh-actions@v1.1.0
         with:
           working-dir: .
           recursive: ${{ steps.check_submodules.outputs.dir_exists }}
