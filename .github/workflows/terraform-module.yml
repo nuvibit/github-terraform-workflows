@@ -276,11 +276,11 @@ jobs:
         working-directory: ${{ inputs.terratest_path }}
         run: |
           go get -v -t -d
-          wget https://github.com/gruntwork-io/terratest/releases/download/v0.40.6/terratest_log_parser_linux_amd64
+          wget https://github.com/gruntwork-io/terratest/releases/download/v0.46.13/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64
 
       - name: Setup Terraform
-        if: ${{ inputs.use_opentofu == 'false' }}
+        if: ${{ inputs.use_opentofu == false }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
@@ -289,7 +289,7 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
       - name: Setup OpenTofu
-        if: ${{ inputs.use_opentofu == 'true' }}
+        if: ${{ inputs.use_opentofu == true }}
         uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: ${{ inputs.terraform_version }}
