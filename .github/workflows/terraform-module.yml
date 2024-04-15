@@ -23,6 +23,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      terratest_version:
+        description: 'Terratest version'
+        default: 'v0.46.12'
+        required: false
+        type: string
       terratest_path:
         description: 'Path to terratest directory'
         default: 'test'
@@ -276,7 +281,7 @@ jobs:
         working-directory: ${{ inputs.terratest_path }}
         run: |
           go get -v -t -d
-          wget https://github.com/gruntwork-io/terratest/releases/download/v0.46.13/terratest_log_parser_linux_amd64
+          wget https://github.com/gruntwork-io/terratest/releases/download/${{ inputs.terratest_version }}/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64
 
       - name: Setup Terraform

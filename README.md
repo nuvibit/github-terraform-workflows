@@ -247,8 +247,10 @@ The Terraform module workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
+| `use_opentofu` | Use OpenTofu instead of Terraform | `false` | false |
 | `terraform_version` | Terraform version used to format code | `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
+| `terratest_version` | Terratest version | `v0.46.12` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
@@ -355,6 +357,7 @@ The Terraform module workflow consists of the following steps:
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
 | `terraform_version` | Terraform version used to format code | `latest` | false |
 | `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
+| `terratest_version` | Terratest version | `v0.46.12` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
