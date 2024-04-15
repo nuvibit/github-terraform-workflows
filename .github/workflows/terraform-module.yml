@@ -13,6 +13,11 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
+      use_opentofu:
+        description: 'Use OpenTofu instead of Terraform'
+        default: false
+        required: false
+        type: boolean
       terraform_version:
         description: 'Terraform version used for Terratest'
         default: 'latest'
@@ -78,14 +83,6 @@ on:
       TERRATEST_AWS_ACCESS_KEY_ID:
         required: false
       TERRATEST_AWS_SECRET_ACCESS_KEY:
-        required: false
-      TERRATEST_ARM_SUBSCRIPTION_ID:
-        required: false
-      TERRATEST_ARM_TENANT_ID:
-        required: false
-      TERRATEST_ARM_CLIENT_ID:
-        required: false
-      TERRATEST_ARM_CLIENT_SECRET:
         required: false
 
 # Ensures that only one workflow runs at a time
@@ -159,7 +156,7 @@ jobs:
 
       - name: Run Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.0.0
+        uses: terraform-docs/gh-actions@v1.1.0
         with:
           working-dir: .
           recursive: ${{ steps.check_submodules.outputs.dir_exists }}
@@ -189,7 +186,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
-        uses: terraform-linters/tflint-load-config-action@v1
+        uses: terraform-linters/tflint-load-config-action@v2
         if: ${{ inputs.tflint_repo_config_path != '' }}
         with:
           source-repo: ${{ inputs.tflint_repo }}
@@ -283,10 +280,20 @@ jobs:
           chmod +x terratest_log_parser_linux_amd64
 
       - name: Setup Terraform
+        if: ${{ inputs.use_opentofu == 'false' }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+
+      - name: Setup OpenTofu
+        if: ${{ inputs.use_opentofu == 'true' }}
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ inputs.terraform_version }}
+          tofu_wrapper: false
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
@@ -297,10 +304,6 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.TERRATEST_ARM_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.TERRATEST_ARM_TENANT_ID }}
-          ARM_CLIENT_ID: ${{ secrets.TERRATEST_ARM_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.TERRATEST_ARM_CLIENT_SECRET }}
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0

@@ -125,7 +125,7 @@ jobs:
 
       - name: Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.0.0
+        uses: terraform-docs/gh-actions@v1.1.0
         with:
           working-dir: ${{ inputs.terraform_working_directory }}
           output-file: README.md
@@ -153,7 +153,7 @@ jobs:
           token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
-        uses: terraform-linters/tflint-load-config-action@v1
+        uses: terraform-linters/tflint-load-config-action@v2
         if: ${{ inputs.tflint_repo_config_path != '' }}
         with:
           source-repo: ${{ inputs.tflint_repo }}

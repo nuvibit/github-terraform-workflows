@@ -23,9 +23,9 @@ These workflows can also be used to test Terraform modules with [Terratest](http
 ## Quick Start
 To get started add github-terraform-workflows to an existing GitHub workflow:
 
-- [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard)
-- [Terraform Workspace Workflow (Minimal)](#terraform-workspace-workflow-minimal)
-- [Terraform Module Workflow (Standard)](#terraform-module-workflow-standard)
+- [Terraform VCS Workflow](#terraform-vcs-workflow)
+- [Terraform Workspace Workflow](#terraform-workspace-workflow)
+- [Terraform Module Workflow](#terraform-module-workflow)
 - [Terraform Module Workflow (Matrix)](#terraform-module-workflow-matrix)
 <br><br>
 
@@ -52,8 +52,74 @@ The reusable Github Workflows include the following public Github Actions:
 In addition to these Github Actions, custom bash scripts are run to avoid using [unverified actions](https://docs.github.com/de/apps/publishing-apps-to-github-marketplace/github-marketplace-overview/about-marketplace-badges#for-github-actions).
 <br><br><br>
 
->## Terraform Workspace Workflow (Standard)
-* This workflow can be used to run Terraform code in a [Terraform workspace][tfe_workspace].
+>## Terraform VCS Workflow
+* This workflow can be used to run Terraform code in a VCS driven workflow
+
+### :exclamation: Requirements
+* Can be used with any VCS compatible Terraform pipeline
+
+### Workflow Steps
+The Terraform VCS workflow consists of the following steps:
+
+`On Pull Request Event`
+1. Terraform Format
+2. Terraform Docs
+3. Terraform Lint
+4. Terraform Security
+6. Publish Result
+
+`On Push Event`
+1. Terraform Format
+2. Terraform Docs
+3. Terraform Lint
+4. Terraform Security
+<br><br>
+
+### Inputs [Terraform VCS Workflow]
+| Name | Description | Default | Required |
+|------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
+| `terraform_version` | Terraform version used inside github action | `latest` | false |
+| `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
+| `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
+| `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
+| `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
+| `tflint_version` | Tflint version to use in github action | `lastest` | false |
+| `trivy_version` | Trivy version to use in github action | `lastest` | false |
+| `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
+| `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
+<br>
+
+### Secrets [Terraform VCS Workflow]
+| Name | Description | Default | Required |
+|------|-------------|---------|----------|
+| `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
+
+### Usage [Terraform VCS Workflow]
+```yaml
+name: TERRAFORM VCS
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform-vcs:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-vcs.yml@v1
+    with:
+      tflint_repo: "nuvibit/github-tflint-config"
+      tflint_repo_config_path: "aws/.tflint.hcl"
+    secrets:
+      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+```
+<br><br>
+
+>## Terraform Workspace Workflow
+* This workflow can be used to run Terraform code in a CLI driven workflow
 
 ### :exclamation: Requirements
 * A Terraform Enterprise or Cloud workspace is required.
@@ -151,22 +217,13 @@ jobs:
 ```
 <br><br>
 
->## Terraform Workspace Workflow (Minimal)
-* This workflow is mostly the same as [Terraform Workspace Workflow (Standard)](#terraform-workspace-workflow-standard) but reduced to only run terraform plan or apply.
-* This can be useful for terraform repositories that are maintained in an automated manner.
-<br><br>
-
->## Terraform Module Workflow (Standard)
+>## Terraform Module Workflow
 * This workflow can be used to run [Terratest][terratest_intro] for a Terraform module.
 * This workflow releases the module automatically with [semantic versioning][semantic_intro].
-* This workflow tests a specific or latest Terraform version.
+* This workflow can only test a single Terraform version.
 
 ### :exclamation: Requirements
-* An AWS account or Azure subscription is required to run Terratest.
-* For this workflow a Terraform Enterprise or Cloud workspace is required.
-* The Terraform workspace should be configured for [local runs][tfe_local_runs].
-* The terraform repository should contain a [remote backend][tfe_remote_backend].
-* [Semantic release config file][semantic_config] is required.
+* An AWS account is required to run Terratest.
 
 ### Workflow Steps
 The Terraform module workflow consists of the following steps:
@@ -190,7 +247,8 @@ The Terraform module workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `terraform_version` | Terraform version used for Terratest | `latest` | false |
+| `terraform_version` | Terraform version used to format code | `latest` | false |
+| `registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest example directory | `examples` | false |
 | `tflint_repo` | Public repo where tflint config is stored. Format: owner/name | `nuvibit/github-tflint-config` | false |
@@ -210,16 +268,13 @@ The Terraform module workflow consists of the following steps:
 | `TERRATEST_AWS_DEFAULT_REGION` | AWS Default Region for Terratest Account | `""` | false |
 | `TERRATEST_AWS_ACCESS_KEY_ID` | AWS Access Key for Terratest Account | `""` | false |
 | `TERRATEST_AWS_SECRET_ACCESS_KEY` | AWS Secret Access Key for Terratest Account | `""` | false |
-| `TERRATEST_ARM_SUBSCRIPTION_ID` | Azure Subscription Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_TENANT_ID` | Azure Tenant Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_CLIENT_ID` | Azure Client Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_CLIENT_SECRET` | Azure Client Secret for Terratest Subscription | `""` | false |
 <br>
 
 ### Inputs [Terraform Release Workflow]
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
+| `toggle_branch_protection` | Temporary disable branch protection to allow release action to push updates to changelog | `true` | false |
 | `semantic_version` | Specify specifying version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
@@ -229,9 +284,9 @@ The Terraform module workflow consists of the following steps:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
+<br>
 
-
-### Usage [Terraform Module + Release Workflow]
+### Usage [Terraform Module Matrix + Release Workflow]
 ```yaml
 name: TERRAFORM MODULE
 
@@ -323,10 +378,6 @@ The Terraform module workflow consists of the following steps:
 | `TERRATEST_AWS_DEFAULT_REGION` | AWS Default Region for Terratest Account | `""` | false |
 | `TERRATEST_AWS_ACCESS_KEY_ID` | AWS Access Key for Terratest Account | `""` | false |
 | `TERRATEST_AWS_SECRET_ACCESS_KEY` | AWS Secret Access Key for Terratest Account | `""` | false |
-| `TERRATEST_ARM_SUBSCRIPTION_ID` | Azure Subscription Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_TENANT_ID` | Azure Tenant Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_CLIENT_ID` | Azure Client Id for Terratest Subscription | `""` | false |
-| `TERRATEST_ARM_CLIENT_SECRET` | Azure Client Secret for Terratest Subscription | `""` | false |
 <br>
 
 ### Inputs [Terraform Release Workflow]
@@ -406,7 +457,6 @@ See [LICENSE][license-url] for full details
 
 [github_workflows_link]: https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions
 [tfe_intro]: https://www.terraform.io/cloud-docs
-[tfe_workspace]: https://www.terraform.io/cloud-docs/workspaces
 [tfe_cli_run]: https://www.terraform.io/cloud-docs/run/cli
 [tfe_remote_backend]: https://www.terraform.io/language/settings/backends/remote#basic-configuration
 [tfe_local_runs]: https://www.terraform.io/cloud-docs/workspaces/state#state-usage-in-terraform-runs
