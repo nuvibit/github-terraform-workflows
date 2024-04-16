@@ -337,8 +337,7 @@ jobs:
 
       - name: Cleanup Terraform / OpenTofu
         run: |
-          rm $(which terraform) 2>/dev/null
-          rm $(which opentofu) 2>/dev/null
+          rm $(which terraform) 2>/dev/null || rm $(which opentofu) 2>/dev/null || echo "no binaries to cleanup"
 
       - name: Setup Terraform
         if: ${{ matrix.binary == 'terraform' }}
