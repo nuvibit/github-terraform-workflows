@@ -336,7 +336,7 @@ jobs:
           chmod +x terratest_log_parser_linux_amd64
 
       - name: Setup Terraform
-        if: ${{ matrix.binary == "terraform" }}
+        if: ${{ matrix.binary == 'terraform' }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ matrix.terraform_version }}
@@ -345,7 +345,7 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
       - name: Setup OpenTofu
-        if: ${{ matrix.binary == "opentofu" }}
+        if: ${{ matrix.binary == 'opentofu' }}
         uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: ${{ matrix.terraform_version }}
