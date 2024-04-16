@@ -325,16 +325,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: debug terraform
-        continue-on-error: true
-        run: |
-          terraform -v
-
-      - name: debug opentofu
-        continue-on-error: true
-        run: |
-          tofu -v
-
       - name: Setup Go
         uses: actions/setup-go@v5
 
@@ -344,6 +334,11 @@ jobs:
           go get -v -t -d
           wget https://github.com/gruntwork-io/terratest/releases/download/${{ inputs.terratest_version }}/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64
+
+      - name: Cleanup Terraform / OpenTofu
+        run: |
+          rm $(which terraform) 2>/dev/null
+          rm $(which opentofu) 2>/dev/null
 
       - name: Setup Terraform
         if: ${{ matrix.binary == 'terraform' }}
