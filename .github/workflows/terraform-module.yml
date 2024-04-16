@@ -284,6 +284,10 @@ jobs:
           wget https://github.com/gruntwork-io/terratest/releases/download/${{ inputs.terratest_version }}/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64
 
+      - name: Cleanup Terraform / OpenTofu
+        run: |
+          rm $(which terraform) 2>/dev/null || rm $(which opentofu) 2>/dev/null || echo "no binaries to cleanup"
+
       - name: Setup Terraform
         if: ${{ inputs.use_opentofu == false }}
         uses: hashicorp/setup-terraform@v3
@@ -309,6 +313,8 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+          TFE_HOSTNAME: ${{ inputs.tfe_hostname }}
+          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
