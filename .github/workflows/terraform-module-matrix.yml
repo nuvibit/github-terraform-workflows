@@ -353,6 +353,16 @@ jobs:
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
+      - name: debug terraform
+        continue-on-error: true
+        run: |
+          terraform -v
+
+      - name: debug opentofu
+        continue-on-error: true
+        run: |
+          tofu -v
+
       - name: Generate Terraform Lock File
         if: ${{ matrix.provider_version != '' }}
         id: terraform_lock_file
