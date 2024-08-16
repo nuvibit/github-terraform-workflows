@@ -109,6 +109,12 @@ on:
         required: false
       TERRATEST_AWS_SECRET_ACCESS_KEY:
         required: false
+      SPACELIFT_API_KEY_ENDPOINT:
+        required: false
+      SPACELIFT_API_KEY_ID:
+        required: false
+      SPACELIFT_API_KEY_SECRET:
+        required: false
 
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
@@ -421,6 +427,10 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+          SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
+          SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
+          SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
           TFE_HOSTNAME: ${{ inputs.tfe_hostname }}
           TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
         run: |
