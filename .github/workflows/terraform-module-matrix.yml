@@ -355,23 +355,23 @@ jobs:
           fi
           echo "terraform_version=$terraform_version" >> $GITHUB_OUTPUT
 
-  #     - name: Setup Terraform
-  #       if: ${{ matrix.binary == 'terraform' }}
-  #       uses: hashicorp/setup-terraform@v3
-  #       with:
-  #         terraform_version: ${{ steps.from_requirements.outputs.terraform_version }}
-  #         terraform_wrapper: false
-  #         cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
-  #         cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+      - name: Setup Terraform
+        if: ${{ matrix.binary == 'terraform' }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.from_requirements.outputs.terraform_version }}
+          terraform_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
-  #     - name: Setup OpenTofu
-  #       if: ${{ matrix.binary == 'opentofu' }}
-  #       uses: opentofu/setup-opentofu@v1
-  #       with:
-  #         tofu_version: ${{ steps.from_requirements.outputs.terraform_version }}
-  #         tofu_wrapper: false
-  #         cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
-  #         cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+      - name: Setup OpenTofu
+        if: ${{ matrix.binary == 'opentofu' }}
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ steps.from_requirements.outputs.terraform_version }}
+          tofu_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
+          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
   #     - name: Generate Terraform Lock File
   #       if: ${{ matrix.provider_version != '' }}
