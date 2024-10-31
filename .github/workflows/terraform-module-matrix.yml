@@ -354,8 +354,7 @@ jobs:
         id: from_requirements
         run: |
           terraform_version="${{ matrix.terraform_version }}"
-          # if [[ "$terraform_version" == "FROM_REQUIREMENTS" ]]; then
-          if [[ "$terraform_version" == "= 1.3.1" ]]; then
+          if [[ "$terraform_version" == "FROM_REQUIREMENTS" ]]; then
             requirements_match=$(grep -zoP 'terraform\s*\{(.|\W)*?required_version\s*=\s*"\D+([0-9\.]+)"' ${{ inputs.terraform_requirements_file }} | grep -zoP '[\d+\.]*\"$')
             terraform_version=$(echo $requirements_match | grep -zoP '[\d\.]+')
           fi
@@ -379,152 +378,152 @@ jobs:
           cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
           cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
-  #     - name: Generate Terraform Lock File
-  #       if: ${{ matrix.provider_version != '' }}
-  #       id: terraform_lock_file
-  #       working-directory: ${{ inputs.terratest_examples_path }}
-  #       env:
-  #         PROVIDER_JSON: ${{ toJson(matrix.provider_version) }}
-  #       run: |
-  #         for d in */; do
-  #           # create artifact name for github action
-  #           artifact_name="terraform version $(echo "${{ steps.from_requirements.outputs.terraform_version }}")<br>"
-  #           # initialize terraform lock file
-  #           touch "$d/.terraform.lock.hcl"
-  #           # get required provider versions from matrix json
-  #           for provider in $(jq -r 'keys | .[]' <<< $PROVIDER_JSON); do
-  #             version=$(jq -r ".[$k]" <<< $PROVIDER_JSON)
-  #             # get provider version if contains X from terraform registry
-  #             if [[ "$version" == *"X"* ]]; then
-  #               for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
-  #                 i=$(echo $i | tr -d '"')
-  #                 declare -a semver
-  #                 semver=($(echo "$version" | tr '.' '\n'))
-  #                 # if X is on first position
-  #                 if [[ "${semver[0]}" == "X" ]]; then
-  #                   version=$i
-  #                   break;
-  #                 # if X is on second position
-  #                 elif [[ "${semver[1]}" == "X" ]]; then
-  #                   if [[ $i == "${semver[0]}."* ]]; then
-  #                     version=$i
-  #                     break;
-  #                   fi
-  #                 # if X is on third position
-  #                 elif [[ "${semver[2]}" == "X" ]]; then
-  #                   if [[ $i == "${semver[0]}.${semver[1]}."* ]]; then
-  #                     version=$i
-  #                     break;
-  #                   fi
-  #                 fi
-  #               done
-  #             elif [[ "$version" == "FROM_REQUIREMENTS" ]]; then
-  #               version_match=$(grep -zoP 'required_providers\W*\{\W*aws(.|\n)*?version\W*\"\D*?(\d+\.\d+\.?\d*)\"' $GITHUB_WORKSPACE/*.tf | grep -zoP '[\d+\.]*\"$')
-  #               version=$(echo $version_match | grep -zoP '[\d\.]+')
-  #               num="${version//[^.]}"
-  #               count="${#num}"
-  #               if [[ $count == 1 ]]; then
-  #                 version="$version.0"
-  #               fi
-  #             fi
-  #             # append provider versions to artifact name
-  #             artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
-  #             # generate terraform lock file for each provider in each terratest example directory
-  #             echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
-  #           done
-  #           cat "$d/.terraform.lock.hcl"
-  #           echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
-  #         done
+      - name: Generate Terraform Lock File
+        if: ${{ matrix.provider_version != '' }}
+        id: terraform_lock_file
+        working-directory: ${{ inputs.terratest_examples_path }}
+        env:
+          PROVIDER_JSON: ${{ toJson(matrix.provider_version) }}
+        run: |
+          for d in */; do
+            # create artifact name for github action
+            artifact_name="terraform version $(echo "${{ steps.from_requirements.outputs.terraform_version }}")<br>"
+            # initialize terraform lock file
+            touch "$d/.terraform.lock.hcl"
+            # get required provider versions from matrix json
+            for provider in $(jq -r 'keys | .[]' <<< $PROVIDER_JSON); do
+              version=$(jq -r ".[$k]" <<< $PROVIDER_JSON)
+              # get provider version if contains X from terraform registry
+              if [[ "$version" == *"X"* ]]; then
+                for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
+                  i=$(echo $i | tr -d '"')
+                  declare -a semver
+                  semver=($(echo "$version" | tr '.' '\n'))
+                  # if X is on first position
+                  if [[ "${semver[0]}" == "X" ]]; then
+                    version=$i
+                    break;
+                  # if X is on second position
+                  elif [[ "${semver[1]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}."* ]]; then
+                      version=$i
+                      break;
+                    fi
+                  # if X is on third position
+                  elif [[ "${semver[2]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]; then
+                      version=$i
+                      break;
+                    fi
+                  fi
+                done
+              elif [[ "$version" == "FROM_REQUIREMENTS" ]]; then
+                version_match=$(grep -zoP 'required_providers\W*\{\W*aws(.|\n)*?version\W*\"\D*?(\d+\.\d+\.?\d*)\"' $GITHUB_WORKSPACE/*.tf | grep -zoP '[\d+\.]*\"$')
+                version=$(echo $version_match | grep -zoP '[\d\.]+')
+                num="${version//[^.]}"
+                count="${#num}"
+                if [[ $count == 1 ]]; then
+                  version="$version.0"
+                fi
+              fi
+              # append provider versions to artifact name
+              artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
+              # generate terraform lock file for each provider in each terratest example directory
+              echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
+            done
+            cat "$d/.terraform.lock.hcl"
+            echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
+          done
 
-  #     - name: Run Terratest
-  #       id: terratest_run
-  #       working-directory: ${{ inputs.terratest_path }}
-  #       env:
-  #         AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-  #         AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-  #         AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
-  #         SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
-  #         SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
-  #         SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
-  #         GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
-  #         TFE_HOSTNAME: ${{ inputs.tfe_hostname }}
-  #         TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
-  #       run: |
-  #         go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
-  #         test ${PIPESTATUS[0]} -eq 0
-  #         echo "./out/summary.log"
-  #       continue-on-error: true
+      - name: Run Terratest
+        id: terratest_run
+        working-directory: ${{ inputs.terratest_path }}
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+          SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
+          SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
+          SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GHE_API_TOKEN }}
+          TFE_HOSTNAME: ${{ inputs.tfe_hostname }}
+          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
+        run: |
+          go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
+          test ${PIPESTATUS[0]} -eq 0
+          echo "./out/summary.log"
+        continue-on-error: true
       
-  #     - name: Terratest Summary
-  #       if: ${{ always() }}
-  #       id: terratest_summary
-  #       working-directory: ${{ inputs.terratest_path }}
-  #       run: |
-  #         echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
-  #         echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
-  #         echo '' >> $GITHUB_STEP_SUMMARY
-  #         echo '| result | test |' >> $GITHUB_STEP_SUMMARY
-  #         echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+      - name: Terratest Summary
+        if: ${{ always() }}
+        id: terratest_summary
+        working-directory: ${{ inputs.terratest_path }}
+        run: |
+          echo '### TERRATEST SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.terraform_lock_file.outputs.artifact_name }}' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | test |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
 
-  #         if [[ ! -f "./out/summary.log" ]]; then
-  #           echo '' >> $GITHUB_STEP_SUMMARY
-  #           echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
-  #           exit 1
-  #         fi
+          if [[ ! -f "./out/summary.log" ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: missing terratest log file 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
 
-  #         test_exists=false
-  #         test_failed=false
-  #         while IFS= read -r line
-  #         do
-  #           if [[ "$line" == *"--- PASS"* ]]; then
-  #             echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
-  #             test_exists=true
-  #           elif [[ "$line" == *"--- FAIL"* ]]; then
-  #             echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
-  #             test_exists=true
-  #             test_failed=true
-  #           fi
-  #         done < "./out/summary.log"
+          test_exists=false
+          test_failed=false
+          while IFS= read -r line
+          do
+            if [[ "$line" == *"--- PASS"* ]]; then
+              echo "| $line |" | sed 's/--- PASS:/:white_check_mark: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+            elif [[ "$line" == *"--- FAIL"* ]]; then
+              echo "| $line |" | sed 's/--- FAIL:/:x: |/g' >> $GITHUB_STEP_SUMMARY
+              test_exists=true
+              test_failed=true
+            fi
+          done < "./out/summary.log"
 
-  #         if [[ $test_exists == false ]]; then
-  #           echo '' >> $GITHUB_STEP_SUMMARY
-  #           echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
-  #           exit 1
-  #         elif [[ $test_failed == true ]]; then
-  #           exit 1
-  #         fi
-  #       continue-on-error: true
+          if [[ $test_exists == false ]]; then
+            echo '' >> $GITHUB_STEP_SUMMARY
+            echo ":x: no terratest results found in 'summary.log'" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          elif [[ $test_failed == true ]]; then
+            exit 1
+          fi
+        continue-on-error: true
 
-  #     - name: Terratest Outcome
-  #       if: ${{ steps.terratest_summary.outcome == 'failure' || steps.terratest_summary.outputs.exitcode == '1' }}
-  #       run: exit 1
+      - name: Terratest Outcome
+        if: ${{ steps.terratest_summary.outcome == 'failure' || steps.terratest_summary.outputs.exitcode == '1' }}
+        run: exit 1
 
-  # workflow-summary:
-  #   needs:
-  #     - terraform-fmt
-  #     - terraform-docs
-  #     - terraform-lint
-  #     - terraform-security
-  #     - terratest-config
-  #     - terratest-run
-  #   runs-on: ${{ inputs.github_runner }}
-  #   if: ${{ always() }}
+  workflow-summary:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
+      - terratest-run
+    runs-on: ${{ inputs.github_runner }}
+    if: ${{ always() }}
 
-  #   steps:
-  #     - name: Workflow Summary
-  #       env:
-  #         TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-  #         TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-  #         TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-  #         TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
-  #         TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
-  #       run: |
-  #         echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
-  #         echo '' >> $GITHUB_STEP_SUMMARY
-  #         echo '| result | job |' >> $GITHUB_STEP_SUMMARY
-  #         echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-  #         echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
-  #         echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
-  #         echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-  #         echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-  #         echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
+    steps:
+      - name: Workflow Summary
+        env:
+          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
+          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
+          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
+          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+          TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
+        run: |
+          echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '| result | job |' >> $GITHUB_STEP_SUMMARY
+          echo '|---|---|' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_TERRATEST_RESULT }} | terratest result |' >> $GITHUB_STEP_SUMMARY
