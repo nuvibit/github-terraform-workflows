@@ -18,6 +18,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      terraform_requirements_file:
+        description: 'File where terraform requirements are defined'
+        default: 'main.tf'
+        required: false
+        type: string
       registry_hostname:
         description: 'Hostname for terraform registry used to download providers'
         default: 'registry.terraform.io'
@@ -351,7 +356,8 @@ jobs:
           terraform_version="${{ matrix.terraform_version }}"
           # if [[ "$terraform_version" == "FROM_REQUIREMENTS" ]]; then
           if [[ "$terraform_version" == "= 1.3.1" ]]; then
-            ls -l
+            requirements_match=$(grep -zoP 'terraform\s*\{(.|\W)*?required_version\s*=\s*"\D+([0-9\.]+)"' ${{ inputs.terraform_requirements_file }} | grep -zoP '[\d+\.]*\"$')
+            terraform_version=$(echo $requirements_match | grep -zoP '[\d\.]+')
           fi
           echo "terraform_version=$terraform_version" >> $GITHUB_OUTPUT
 
