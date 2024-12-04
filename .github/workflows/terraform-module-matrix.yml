@@ -190,20 +190,30 @@ jobs:
               echo "dir_exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run Terraform Docs
+      - name: Run Terraform Docs Readme
         id: docs
-        uses: terraform-docs/gh-actions@v1.1.0
+        uses: terraform-docs/gh-actions@v1.3.0
         with:
           working-dir: .
           recursive: ${{ steps.check_submodules.outputs.dir_exists }}
           recursive-path: modules
           output-file: README.md
           output-method: inject
+          output-format: markdown document
           args: --sort-by required
+
+      - name: Run Terraform Docs Markdown
+        id: docs-md
+        uses: terraform-docs/gh-actions@v1.3.0
+        with:
+          working-dir: .
+          output-file: docs/tfdocs.md
+          output-method: replace
+          args: --sort-by required --anchor=false
           git-push: true
           git-push-user-name: ${{ inputs.commit_user }}
           git-push-user-email: ${{ inputs.commit_email }}
-          git-commit-message: "docs(terraform-docs): update readme"
+          git-commit-message: "docs(terraform-docs): update markdown"
 
   terraform-lint:
     needs: 
