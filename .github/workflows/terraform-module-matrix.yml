@@ -202,12 +202,17 @@ jobs:
           output-format: markdown document
           args: --sort-by required
 
+      - name: Create docs subfolder
+        id: docs_subfolder
+        run: |
+          mkdir -p ./docs
+
       - name: Run Terraform Docs Markdown
         id: docs-md
         uses: terraform-docs/gh-actions@v1.3.0
         with:
           working-dir: .
-          output-file: docs/tfdocs.md
+          output-file: ./docs/tfdocs.md
           output-method: replace
           args: --sort-by required --anchor=false
           git-push: true
