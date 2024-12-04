@@ -199,7 +199,7 @@ jobs:
           recursive-path: modules
           output-file: README.md
           output-method: inject
-          output-format: markdown document
+          output-format: markdown table
           args: --sort-by required
 
       - name: Create docs subfolder
@@ -214,6 +214,7 @@ jobs:
           working-dir: .
           output-file: ./docs/tfdocs.md
           output-method: replace
+          output-format: markdown document
           args: --sort-by required --anchor=false
           git-push: true
           git-push-user-name: ${{ inputs.commit_user }}
