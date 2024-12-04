@@ -218,7 +218,7 @@ jobs:
           git-push: true
           git-push-user-name: ${{ inputs.commit_user }}
           git-push-user-email: ${{ inputs.commit_email }}
-          git-commit-message: "docs(terraform-docs): update markdown"
+          git-commit-message: "docs(terraform-docs): update tfdocs"
 
   terraform-lint:
     needs: 
