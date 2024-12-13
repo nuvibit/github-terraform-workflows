@@ -161,18 +161,19 @@ jobs:
 
       - name: Run Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.1.0
+        uses: terraform-docs/gh-actions@v1.3.0
         with:
           working-dir: .
           recursive: ${{ steps.check_submodules.outputs.dir_exists }}
           recursive-path: modules
           output-file: README.md
           output-method: inject
-          args: --sort-by required
+          output-format: markdown document
+          args: --sort-by required --anchor=false
           git-push: true
           git-push-user-name: ${{ inputs.commit_user }}
           git-push-user-email: ${{ inputs.commit_email }}
-          git-commit-message: "docs(terraform-docs): update readme"
+          git-commit-message: "docs(terraform-docs): update tfdocs"
 
   terraform-lint:
     needs: 
@@ -280,6 +281,8 @@ jobs:
       - name: Get Dependencies
         working-directory: ${{ inputs.terratest_path }}
         run: |
+          wget -O go.mod https://raw.githubusercontent.com/nuvibit/github-terratest-config/refs/heads/main/dependencies/go.mod
+          wget -O go.sum https://raw.githubusercontent.com/nuvibit/github-terratest-config/refs/heads/main/dependencies/go.sum
           go get -v -t -d
           wget https://github.com/gruntwork-io/terratest/releases/download/${{ inputs.terratest_version }}/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64
