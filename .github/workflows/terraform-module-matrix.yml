@@ -30,7 +30,7 @@ on:
         type: string
       terratest_version:
         description: 'Terratest version'
-        default: 'v0.46.12'
+        default: 'v0.48.0'
         required: false
         type: string
       terratest_path:
@@ -343,6 +343,8 @@ jobs:
       - name: Get Dependencies
         working-directory: ${{ inputs.terratest_path }}
         run: |
+          wget -O go.mod https://raw.githubusercontent.com/nuvibit/github-terratest-config/refs/heads/main/dependencies/go.mod
+          wget -O go.sum https://raw.githubusercontent.com/nuvibit/github-terratest-config/refs/heads/main/dependencies/go.sum
           go get -v -t -d
           wget https://github.com/gruntwork-io/terratest/releases/download/${{ inputs.terratest_version }}/terratest_log_parser_linux_amd64
           chmod +x terratest_log_parser_linux_amd64

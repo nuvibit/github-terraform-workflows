@@ -123,18 +123,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GHE_API_TOKEN }}
 
-      - name: Terraform Docs
+      - name: Run Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.1.0
+        uses: terraform-docs/gh-actions@v1.3.0
         with:
           working-dir: ${{ inputs.terraform_working_directory }}
           output-file: README.md
           output-method: inject
-          args: --sort-by required
+          output-format: markdown document
+          args: --sort-by required --anchor=false
           git-push: true
           git-push-user-name: ${{ inputs.commit_user }}
           git-push-user-email: ${{ inputs.commit_email }}
-          git-commit-message: "docs(terraform-docs): update readme"
+          git-commit-message: "docs(terraform-docs): update tfdocs"
 
   terraform-lint:
     needs:
