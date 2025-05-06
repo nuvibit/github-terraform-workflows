@@ -85,7 +85,7 @@ on:
         type: string
       trivy_version:
         description: 'Trivy version to use'
-        default: 'latest'
+        default: 'v0.61.1' # fixme: hardcoding version until problems in 0.62.0 are solved.
         required: false
         type: string
       commit_user:
