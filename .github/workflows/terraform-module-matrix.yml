@@ -83,6 +83,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      reviewdog_flags:
+        description: 'Optional flags to pass to reviewdog'
+        default: ''
+        required: false
+        type: string
       trivy_version:
         description: 'Trivy version to use'
         default: 'latest'
@@ -278,7 +283,7 @@ jobs:
           fail_on_error: true
           filter_mode: nofilter
           level: error
-          flags: ""
+          flags: ${{ inputs.reviewdog_flags }}
           trivy_flags: ""
           trivy_command: config
           trivy_target: .
