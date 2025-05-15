@@ -399,6 +399,10 @@ jobs:
               # get provider version if contains X from terraform registry
               if [[ "$version" == *"X"* ]]; then
                 for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
+                  if [[ $i =~ "-" ]];
+                  then
+                    continue
+                  fi
                   i=$(echo $i | tr -d '"')
                   declare -a semver
                   semver=($(echo "$version" | tr '.' '\n'))
