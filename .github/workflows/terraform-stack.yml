@@ -14,7 +14,7 @@ on:
         required: false
         type: boolean
       terraform_version:
-        description: 'Terraform version used inside github action'
+        description: 'Terraform version used in github action'
         default: 'latest'
         required: false
         type: string

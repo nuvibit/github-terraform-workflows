@@ -4,20 +4,21 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://nuvibit.com/images/logo/logo-nuvibit-banner.png">
   <source media="(prefers-color-scheme: light)" srcset="https://nuvibit.com/images/logo/logo-nuvibit-banner-dark.png">
-  <img alt="Fallback image description" src="[Nuvibit Logo](https://nuvibit.com/images/logo/logo-nuvibit-banner.png)" width="400">
+  <img alt="Nuvibit - Sovereign AWS Platforms" src="https://nuvibit.com/images/logo/logo-nuvibit-banner.png" width="400">
 </picture>
 <br/>
 <br/>
 
 <!-- DESCRIPTION -->
-Reusable [GitHub Workflows](https://docs.github.com/en/actions/learn-github-actions/) to run state-of-the-art Terraform and OpenTofu pipelines with flexible deployment strategies.
+Reusable [GitHub Workflows](https://docs.github.com/en/actions/learn-github-actions/) to run state-of-the-art Terraform and OpenTofu pipelines with flexible deployment strategies.\
+Built by **Nuvibit**, the leading specialist in **sovereign AWS platforms** and creator of the **Nuvibit Terraform Collection (NTC)**.
 
 ## 🚀 **Two Workflow Categories**
 
 This collection provides workflows for **two distinct Infrastructure as Code scenarios**:
 
 ### **📦 Infrastructure Deployment Workflows**
-For deploying and managing infrastructure (AWS, Azure, GCP, etc.) using Terraform/OpenTofu:
+For deploying and managing infrastructure on AWS using Terraform/OpenTofu:
 
 - **Primary Workflow**: `terraform-stack.yml`
 - **Purpose**: Deploy infrastructure changes to cloud environments
@@ -30,7 +31,7 @@ For developing, testing, and releasing reusable Terraform modules:
 - **Workflows**: `terraform-module-test.yml` + `terraform-module-release.yml`
 - **Purpose**: Automated testing with Terratest and semantic versioning releases
 - **Target**: Terraform module repositories, library development
-- **Features**: Integration testing, automated releases, version management
+- **Features**: OIDC authentication, matrix testing with dynamic provider versions, automated releases
 
 ## 🔄 **Deployment Approaches (Infrastructure Workflows)**
 
@@ -86,6 +87,7 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@actions/setup-go`](https://github.com/actions/setup-go)
 - [`@actions/github-script`](https://github.com/actions/github-script)
 - [`@ad-m/github-push-action`](https://github.com/ad-m/github-push-action)
+- [`@aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials)
 - [`@cycjimmy/semantic-release-action`](https://github.com/cycjimmy/semantic-release-action)
 - [`@hashicorp/setup-terraform`](https://github.com/hashicorp/setup-terraform)
 - [`@opentofu/setup-opentofu`](https://github.com/opentofu/setup-opentofu)
@@ -95,10 +97,10 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
 
 In addition to these Github Actions, custom bash scripts are run to avoid using [unverified actions](https://docs.github.com/de/apps/publishing-apps-to-github-marketplace/github-marketplace-overview/about-marketplace-badges#for-github-actions).
-<br><br><br>
+
 
 >## Terraform Stack Workflow
-* **Purpose**: Deploy and manage infrastructure (AWS, Azure, GCP, etc.) using Terraform/OpenTofu
+* **Purpose**: Deploy and manage infrastructure on AWS using Terraform/OpenTofu
 * **Target**: Infrastructure repositories, environment-specific deployments, cloud resource management
 * This workflow provides a complete Terraform/OpenTofu CI/CD pipeline with quality gates
 * Supports both Terraform and OpenTofu  
@@ -136,11 +138,11 @@ The Terraform Stack workflow consists of the following steps:
 3. **Terraform Lint** - Static code analysis with TFLint
 4. **Terraform Security** - Security scanning with Trivy
 
-`Optional Steps (when enabled)`
-5. **Terraform Plan** - On pull requests (posts results to PR)
-6. **Terraform Apply** - On push to default branch (auto-approve)
-7. **Workflow Summary** - Centralized status reporting
-<br><br>
+`Optional Steps (when enabled)`\
+5. **Terraform Plan** - On pull requests (posts results to PR)\
+6. **Terraform Apply** - On push to default branch (auto-approve)\
+7. **Workflow Summary** - Centralized status reporting\
+
 
 ### Inputs [Terraform Stack Workflow]
 | Name | Description | Default | Required |
@@ -161,11 +163,6 @@ The Terraform Stack workflow consists of the following steps:
 | `default_branch` | Default branch name for terraform apply (e.g. main, master) | `main` | false |
 <br>
 
-### Secrets [Terraform Stack Workflow]
-| Name | Description | Default | Required |
-|------|-------------|---------|----------|
-| `GHE_API_TOKEN` | Github (Enterprise) API Token is required to pull private terraform module dependencies directly from github | `""` | true |
-
 ### Usage [Terraform Stack Workflow - Static Checks Only]
 *Perfect for teams using Terraform Cloud, Spacelift, or other IaC platforms*
 
@@ -184,11 +181,9 @@ jobs:
   terraform-stack:
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v1
     with:
-      # enable_terraform_execution: false (default - static checks only)
+      enable_terraform_execution: false # (default) Run static checks only
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
 
 ### Usage [Terraform Stack Workflow - Complete CI/CD]
@@ -213,8 +208,6 @@ jobs:
       default_branch: "main"
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
 
 ### Usage [OpenTofu Stack Workflow - Complete CI/CD]
@@ -238,58 +231,68 @@ jobs:
       enable_terraform_execution: true
       terraform_version: "1.8.0"
       terraform_working_directory: "./infrastructure"
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
-<br><br>
 
 >## Terraform Module Test Workflow  
 * **Purpose**: Automated testing and validation of reusable Terraform modules
 * **Target**: Terraform module repositories, library development, module marketplaces
 * This workflow runs comprehensive testing for Terraform modules using [Terratest](https://terratest.gruntwork.io/docs/getting-started/quick-start/)
 * Includes format, documentation, lint, security, and integration testing
-* Supports multiple cloud providers and matrix testing
+* Supports both Terraform and OpenTofu with OIDC authentication for secure cloud testing
 
 ### :white_check_mark: Features
-* **Terratest Integration**: Automated testing with Go-based test framework
-* **Matrix Testing**: Support for testing multiple Terraform versions
-* **Multi-Cloud**: AWS, Azure, and other cloud provider support
-* **Quality Gates**: Same format, docs, lint, security checks as stack workflow
-* **Parallel Testing**: Configurable parallel test execution
+* **OIDC Authentication**: Secure, keyless authentication with AWS using OpenID Connect
+* **Matrix Testing**: Support for testing multiple Terraform/OpenTofu versions and provider combinations
+* **Dynamic Provider Versions**: Automatic resolution of provider versions from requirements or latest versions
+* **Quality Gates**: Format, docs, lint, and security checks before integration testing
+* **Parallel Testing**: Configurable parallel test execution with `terratest_max_parallel`
+* **Automated Formatting**: Auto-commits formatting and documentation changes
+* **Comprehensive Reporting**: Detailed test summaries and workflow status in GitHub Actions
 
 ### Workflow Steps
-`On Pull Request Event`
-1. **Terraform Format** - Code formatting
-2. **Terraform Docs** - Documentation generation  
-3. **Terraform Lint** - Static code analysis
-4. **Terraform Security** - Security scanning
-5. **Terratest** - Integration testing with real infrastructure
-6. **Publish Results** - Test results and coverage
+`Sequential Pipeline - Each step depends on previous success`
+1. **Terraform Format** - Code formatting with auto-commit to PR branch
+2. **Terraform Docs** - Documentation generation for modules and submodules
+3. **Terraform Lint** - Static code analysis with configurable TFLint rules
+4. **Terraform Security** - Security scanning with Trivy on examples directory
+5. **Terratest Config** - Dynamic matrix generation from configuration repository
+6. **Terratest Run** - Integration testing with real infrastructure using OIDC
+7. **Workflow Summary** - Centralized status reporting with visual indicators
 
 ### Inputs [Terraform Module Test Workflow]
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
-| `tfe_hostname` | Terraform Enterprise/Cloud hostname | `app.terraform.io` | false |
-| `terraform_version` | Terraform version used for Terratest | `latest` | false |
+| `use_opentofu` | Use OpenTofu instead of Terraform to format the code | `false` | false |
+| `terraform_version` | Terraform version used for formatting and linting | `latest` | false |
+| `terraform_requirements_file` | File where terraform requirements are defined | `main.tf` | false |
+| `terraform_registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
+| `aws_default_region` | Default AWS region to use for Terratest | `eu-central-1` | false |
+| `aws_oidc_role_arn` | AWS OIDC role ARN to assume for Terratest | `""` | **true** |
 | `terratest_version` | Terratest version | `v0.48.0` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
 | `terratest_examples_path` | Path to terratest examples directory | `examples` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
+| `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
+| `terratest_config_repo_ref` | Ref or branch of terratest_config_repo | `main` | false |
+| `terratest_config_repo_path` | Path to terratest matrix json config in terratest_config_repo | `aws/matrix.json` | false |
 | `tflint_repo` | Public repo where tflint config is stored | `nuvibit/github-tflint-config` | false |
-| `tflint_repo_config_path` | Path to tflint config in tflint_repo | `""` | false |
+| `tflint_repo_config_path` | Path to tflint config in tflint_repo | `aws/.tflint.hcl` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
-| `tflint_version` | Tflint version to use in github action | `latest` | false |
-| `trivy_version` | Trivy version to use in github action | `latest` | false |
+| `tflint_version` | Tflint version to use | `latest` | false |
+| `trivy_version` | Trivy version to use | `v0.61.1` | false |
+| `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
+| `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
+| `concurrency_group` | Name of concurrency group to manage concurrent github action runs | Auto-generated | false |
 
 ### Secrets [Terraform Module Test Workflow]
 | Name | Description | Required |
 |------|-------------|----------|
-| `GHE_API_TOKEN` | Github (Enterprise) API Token | true |
-| `TFE_API_TOKEN` | Terraform Enterprise/Cloud API Token | false |
-| `TERRATEST_AWS_DEFAULT_REGION` | AWS Default Region for Terratest | false |
-| `TERRATEST_AWS_ACCESS_KEY_ID` | AWS Access Key for Terratest | false |
-| `TERRATEST_AWS_SECRET_ACCESS_KEY` | AWS Secret Access Key for Terratest | false |
+| `SPACELIFT_API_KEY_ENDPOINT` | Spacelift API endpoint for integration testing | false |
+| `SPACELIFT_API_KEY_ID` | Spacelift API key ID for authentication | false |
+| `SPACELIFT_API_KEY_SECRET` | Spacelift API key secret for authentication | false |
+
+**Note**: This workflow uses **OIDC authentication** with AWS, eliminating the need for long-lived AWS credentials. Configure your AWS OIDC provider and specify the role ARN in `aws_oidc_role_arn`.
 
 ### Usage [Terraform Module Test Workflow]
 ```yaml
@@ -304,22 +307,51 @@ jobs:
   terraform-module-test:
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
     with:
+      # Required: AWS OIDC role for secure authentication
+      aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
+      
+      # Optional: Customize linting configuration
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
+      
+      # Optional: Customize testing configuration
       terratest_version: "v0.48.0"
+      terratest_max_parallel: 2
+      
+      # Optional: Use OpenTofu instead of Terraform
+      # use_opentofu: true
+      # terraform_version: "1.8.0"
     secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
-      TFE_API_TOKEN: ${{ secrets.TFE_API_TOKEN }}
-      TERRATEST_AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-      TERRATEST_AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-      TERRATEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+      # Optional: For Spacelift integration
+      SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
+      SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
+      SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
 ```
-<br><br>
+
+### Usage [OpenTofu Module Test Workflow]
+```yaml
+name: OPENTOFU MODULE TEST
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  opentofu-module-test:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    with:
+      use_opentofu: true
+      terraform_version: "1.8.0"
+      aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
+      tflint_repo: "nuvibit/github-tflint-config"
+      tflint_repo_config_path: "aws/.tflint.hcl"
+```
 
 >## Terraform Module Release Workflow
 * **Purpose**: Automated versioning and releasing of Terraform modules
 * **Target**: Terraform module repositories, library maintenance, version management
-* This workflow automatically releases Terraform modules with [semantic versioning]https://github.com/semantic-release/semantic-release#-semantic-release  
+* This workflow automatically releases Terraform modules with [semantic versioning](https://github.com/semantic-release/semantic-release#-semantic-release)  
 * Integrates with conventional commit standards
 * Manages branch protection and changelog generation
 
@@ -347,11 +379,6 @@ jobs:
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
 | `concurrency_group` | Name of concurrency group to manage concurrent github action runs | Auto-generated | false |
 
-### Secrets [Terraform Module Release Workflow]
-| Name | Description | Required |
-|------|-------------|----------|
-| `GHE_API_TOKEN` | Github (Enterprise) API Token | true |
-
 ### Usage [Terraform Module Release Workflow]
 ```yaml
 name: TERRAFORM MODULE RELEASE
@@ -364,8 +391,6 @@ on:
 jobs:
   terraform-module-release:
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
 
 ### Usage [Complete Module Workflow - Test + Release]
@@ -385,20 +410,18 @@ jobs:
     if: ${{ github.event_name == 'pull_request' }}
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
     with:
+      aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
-      TFE_API_TOKEN: ${{ secrets.TFE_API_TOKEN }}
-      TERRATEST_AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-      TERRATEST_AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-      TERRATEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+      # spacelift credentials used to test spacelift administration
+      SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
+      SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
+      SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
 
   terraform-module-release:
     if: ${{ github.event_name == 'push' }}
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
-    secrets:
-      GHE_API_TOKEN: ${{ secrets.GHE_API_TOKEN }}
 ```
 
 <!-- AUTHORS -->

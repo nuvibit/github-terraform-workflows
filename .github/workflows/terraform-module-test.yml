@@ -14,7 +14,7 @@ on:
         required: false
         type: boolean
       terraform_version:
-        description: 'Terraform version used for Terratest'
+        description: 'Terraform version used for formatting and linting'
         default: 'latest'
         required: false
         type: string
@@ -23,10 +23,20 @@ on:
         default: 'main.tf'
         required: false
         type: string
-      registry_hostname:
+      terraform_registry_hostname:
         description: 'Hostname for terraform registry used to download providers'
         default: 'registry.terraform.io'
         required: false
+        type: string
+      aws_default_region:
+        description: 'Default AWS region to use for Terratest'
+        default: 'eu-central-1'
+        required: false
+        type: string
+      aws_oidc_role_arn:
+        description: 'AWS OIDC role ARN to assume for Terratest'
+        default: ''
+        required: true
         type: string
       terratest_version:
         description: 'Terratest version'
@@ -59,8 +69,8 @@ on:
         required: false
         type: string
       terratest_config_repo_path:
-        description: 'Path to terratest matrix json config in terratest_config_repo (e.g. "aws/matrix.json")'
-        default: ''
+        description: 'Path to terratest matrix json config in terratest_config_repo'
+        default: 'aws/matrix.json'
         required: false
         type: string
       tflint_repo:
@@ -69,8 +79,8 @@ on:
         required: false
         type: string
       tflint_repo_config_path:
-        description: 'Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl")'
-        default: ''
+        description: 'Path to tflint config in tflint_repo'
+        default: 'aws/.tflint.hcl'
         required: false
         type: string
       tflint_repo_ref:
@@ -104,14 +114,8 @@ on:
         required: false
         type: string
     secrets:
-      GHE_API_TOKEN:
-        required: true
-      TERRATEST_AWS_DEFAULT_REGION:
-        required: false
-      TERRATEST_AWS_ACCESS_KEY_ID:
-        required: false
-      TERRATEST_AWS_SECRET_ACCESS_KEY:
-        required: false
+      # GITHUB_PAT:
+      #   required: true
       SPACELIFT_API_KEY_ENDPOINT:
         required: false
       SPACELIFT_API_KEY_ID:
@@ -121,6 +125,11 @@ on:
 
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
+
+# Required permissions for OIDC authentication
+permissions:
+  id-token: write   # This is required for requesting the JWT
+  contents: read    # This is required for actions/checkout
 
 jobs:
   terraform-fmt:
@@ -305,14 +314,12 @@ jobs:
 
     steps:
       - name: Checkout
-        if: ${{ inputs.terratest_config_repo_path != '' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.terratest_config_repo }}
           ref: ${{ inputs.terratest_config_repo_ref }}
 
       - name: Get Terratest Matrix Config
-        if: ${{ inputs.terratest_config_repo_path != '' }}
         id: set_matrix
         run: |
           JSON=$(jq -r @json <<< cat ${{ inputs.terratest_config_repo_path }})
@@ -335,9 +342,9 @@ jobs:
       matrix: ${{ fromJson(needs.terratest-config.outputs.matrix) }}
 
     steps:
-      - name: Set Git Access Token
-        run: |
-          git config --global url."https://oauth2:${{ secrets.GHE_API_TOKEN }}@github.com".insteadOf https://github.com
+      # - name: Set Git Access Token
+      #   run: |
+      #     git config --global url."https://oauth2:${{ secrets.GITHUB_PAT }}@github.com".insteadOf https://github.com
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -383,6 +390,14 @@ jobs:
         with:
           tofu_version: ${{ steps.from_requirements.outputs.terraform_version }}
           tofu_wrapper: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws_oidc_role_arn }}
+          role-session-name: GitHubActions-Terratest
+          aws-region: ${{ inputs.aws_default_region }}
+          role-duration-seconds: 3600
 
       - name: Generate Terraform Lock File
         if: ${{ matrix.provider_version != '' }}
@@ -439,7 +454,7 @@ jobs:
               # append provider versions to artifact name
               artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
               # generate terraform lock file for each provider in each terratest example directory
-              echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
+              echo -en "provider \"${{ inputs.terraform_registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
             done
             cat "$d/.terraform.lock.hcl"
             echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
@@ -449,9 +464,7 @@ jobs:
         id: terratest_run
         working-directory: ${{ inputs.terratest_path }}
         env:
-          AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
           SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
           SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
