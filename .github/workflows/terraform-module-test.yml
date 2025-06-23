@@ -1,4 +1,4 @@
-name: TERRAFORM MODULE
+name: TERRAFORM MODULE TEST
 
 on:
   workflow_call:
@@ -8,13 +8,8 @@ on:
         default: 'ubuntu-latest'
         required: false
         type: string
-      tfe_hostname:
-        description: 'Hostname for terraform cloud/enterprise'
-        default: 'app.terraform.io'
-        required: false
-        type: string
       use_opentofu:
-        description: 'Use OpenTofu instead of Terraform'
+        description: 'Use OpenTofu instead of Terraform to format the code'
         default: false
         required: false
         type: boolean
@@ -23,9 +18,19 @@ on:
         default: 'latest'
         required: false
         type: string
+      terraform_requirements_file:
+        description: 'File where terraform requirements are defined'
+        default: 'main.tf'
+        required: false
+        type: string
+      registry_hostname:
+        description: 'Hostname for terraform registry used to download providers'
+        default: 'registry.terraform.io'
+        required: false
+        type: string
       terratest_version:
         description: 'Terratest version'
-        default: 'v0.46.12'
+        default: 'v0.48.0'
         required: false
         type: string
       terratest_path:
@@ -34,8 +39,28 @@ on:
         required: false
         type: string
       terratest_examples_path:
-        description: 'Path to terratest example directory'
+        description: 'Path to terratest examples directory'
         default: 'examples'
+        required: false
+        type: string
+      terratest_max_parallel:
+        description: 'Maximum number of terratest runs that should run simultaneously'
+        default: 1
+        required: false
+        type: number
+      terratest_config_repo:
+        description: 'Public repo where terratest matrix json is stored'
+        default: 'nuvibit/github-terratest-config'
+        required: false
+        type: string
+      terratest_config_repo_ref:
+        description: 'Ref or branch of terratest_config_repo'
+        default: 'main'
+        required: false
+        type: string
+      terratest_config_repo_path:
+        description: 'Path to terratest matrix json config in terratest_config_repo (e.g. "aws/matrix.json")'
+        default: ''
         required: false
         type: string
       tflint_repo:
@@ -60,7 +85,7 @@ on:
         type: string
       trivy_version:
         description: 'Trivy version to use'
-        default: 'latest'
+        default: 'v0.61.1' # fixme: hardcoding version until problems in 0.62.0 are solved.
         required: false
         type: string
       commit_user:
@@ -81,13 +106,17 @@ on:
     secrets:
       GHE_API_TOKEN:
         required: true
-      TFE_API_TOKEN:
-        required: true
       TERRATEST_AWS_DEFAULT_REGION:
         required: false
       TERRATEST_AWS_ACCESS_KEY_ID:
         required: false
       TERRATEST_AWS_SECRET_ACCESS_KEY:
+        required: false
+      SPACELIFT_API_KEY_ENDPOINT:
+        required: false
+      SPACELIFT_API_KEY_ID:
+        required: false
+      SPACELIFT_API_KEY_SECRET:
         required: false
 
 # Ensures that only one workflow runs at a time
@@ -105,16 +134,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Terraform
+        if: ${{ inputs.use_opentofu == 'false' }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Setup OpenTofu
+        if: ${{ inputs.use_opentofu == 'true' }}
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ inputs.terraform_version }}
+          tofu_wrapper: false
 
       - name: Terraform Format
         id: fmt
-        run: terraform fmt -recursive
+        run: |
+          if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
+            tofu fmt -recursive
+          else
+            terraform fmt -recursive
+          fi
 
       - name: Commit Changes
         id: fmt_commit
@@ -122,9 +164,9 @@ jobs:
           git config --local user.name "${{ inputs.commit_user }}"
           git config --local user.email "${{ inputs.commit_email }}"
           if [[ -z $(git status -s) ]]; then
-            echo "diff=false" >> $GITHUB_OUTPUT
+              echo "diff=false" >> $GITHUB_OUTPUT
           else
-            echo "diff=true" >> $GITHUB_OUTPUT
+              echo "diff=true" >> $GITHUB_OUTPUT
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
@@ -148,7 +190,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Check For Submodules
         id: check_submodules
@@ -189,7 +230,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Get TFLint Config
         uses: terraform-linters/tflint-load-config-action@v2
@@ -228,7 +268,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Check For Examples
         run: |
@@ -237,7 +276,7 @@ jobs:
             exit 1
           fi
       
-      - name: Run Trify
+      - name: Run Trivy
         uses: reviewdog/action-trivy@v1
         id: security
         with:
@@ -253,7 +292,7 @@ jobs:
           trivy_target: .
           trivy_version: ${{ inputs.trivy_version }}
 
-  terratest-run:
+  terratest-config:
     needs:
       - terraform-fmt
       - terraform-docs
@@ -262,7 +301,38 @@ jobs:
     if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+
+    steps:
+      - name: Checkout
+        if: ${{ inputs.terratest_config_repo_path != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.terratest_config_repo }}
+          ref: ${{ inputs.terratest_config_repo_ref }}
+
+      - name: Get Terratest Matrix Config
+        if: ${{ inputs.terratest_config_repo_path != '' }}
+        id: set_matrix
+        run: |
+          JSON=$(jq -r @json <<< cat ${{ inputs.terratest_config_repo_path }})
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+
+  terratest-run:
+    needs:
+      - terraform-fmt
+      - terraform-docs
+      - terraform-lint
+      - terraform-security
+      - terratest-config
+    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    runs-on: ${{ inputs.github_runner }}
+    outputs:
       terratest_status: ${{ steps.terratest_summary.outcome }}
+
+    strategy:
+      max-parallel: ${{ inputs.terratest_max_parallel }}
+      matrix: ${{ fromJson(needs.terratest-config.outputs.matrix) }}
 
     steps:
       - name: Set Git Access Token
@@ -273,7 +343,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GHE_API_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -291,23 +360,90 @@ jobs:
         run: |
           rm $(which terraform) 2>/dev/null || rm $(which opentofu) 2>/dev/null || echo "no binaries to cleanup"
 
+      - name: Get Terraform / OpenTofu Version From Requirements
+        id: from_requirements
+        run: |
+          terraform_version="${{ matrix.terraform_version }}"
+          if [[ "$terraform_version" == "FROM_REQUIREMENTS" ]]; then
+            requirements_match=$(grep -zoP 'terraform\s*\{(.|\W)*?required_version\s*=\s*"\D+([0-9\.]+)"' ${{ inputs.terraform_requirements_file }} | grep -zoP '[\d+\.]*\"$')
+            terraform_version=$(echo $requirements_match | grep -zoP '[\d\.]+')
+          fi
+          echo "terraform_version=$terraform_version" >> $GITHUB_OUTPUT
+
       - name: Setup Terraform
-        if: ${{ inputs.use_opentofu == false }}
+        if: ${{ matrix.binary == 'terraform' }}
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ inputs.terraform_version }}
+          terraform_version: ${{ steps.from_requirements.outputs.terraform_version }}
           terraform_wrapper: false
-          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
-          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
 
       - name: Setup OpenTofu
-        if: ${{ inputs.use_opentofu == true }}
+        if: ${{ matrix.binary == 'opentofu' }}
         uses: opentofu/setup-opentofu@v1
         with:
-          tofu_version: ${{ inputs.terraform_version }}
+          tofu_version: ${{ steps.from_requirements.outputs.terraform_version }}
           tofu_wrapper: false
-          cli_config_credentials_hostname: ${{ inputs.tfe_hostname }}
-          cli_config_credentials_token: ${{ secrets.TFE_API_TOKEN }}
+
+      - name: Generate Terraform Lock File
+        if: ${{ matrix.provider_version != '' }}
+        id: terraform_lock_file
+        working-directory: ${{ inputs.terratest_examples_path }}
+        env:
+          PROVIDER_JSON: ${{ toJson(matrix.provider_version) }}
+        run: |
+          for d in */; do
+            # create artifact name for github action
+            artifact_name="terraform version $(echo "${{ steps.from_requirements.outputs.terraform_version }}")<br>"
+            # initialize terraform lock file
+            touch "$d/.terraform.lock.hcl"
+            # get required provider versions from matrix json
+            for provider in $(jq -r 'keys | .[]' <<< $PROVIDER_JSON); do
+              version=$(jq -r ".[$k]" <<< $PROVIDER_JSON)
+              # get provider version if contains X from terraform registry
+              if [[ "$version" == *"X"* ]]; then
+                for i in $(curl -s https://registry.terraform.io/v1/providers/$provider | jq -r '.versions' | jq 'reverse' | jq '.[]'); do
+                  if [[ $i =~ "-" ]];
+                  then
+                    continue
+                  fi
+                  i=$(echo $i | tr -d '"')
+                  declare -a semver
+                  semver=($(echo "$version" | tr '.' '\n'))
+                  # if X is on first position
+                  if [[ "${semver[0]}" == "X" ]]; then
+                    version=$i
+                    break;
+                  # if X is on second position
+                  elif [[ "${semver[1]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}."* ]]; then
+                      version=$i
+                      break;
+                    fi
+                  # if X is on third position
+                  elif [[ "${semver[2]}" == "X" ]]; then
+                    if [[ $i == "${semver[0]}.${semver[1]}."* ]]; then
+                      version=$i
+                      break;
+                    fi
+                  fi
+                done
+              elif [[ "$version" == "FROM_REQUIREMENTS" ]]; then
+                version_match=$(grep -zoP 'required_providers\W*\{\W*aws(.|\n)*?version\W*\"\D*?(\d+\.\d+\.?\d*)\"' $GITHUB_WORKSPACE/*.tf | grep -zoP '[\d+\.]*\"$')
+                version=$(echo $version_match | grep -zoP '[\d\.]+')
+                num="${version//[^.]}"
+                count="${#num}"
+                if [[ $count == 1 ]]; then
+                  version="$version.0"
+                fi
+              fi
+              # append provider versions to artifact name
+              artifact_name+="provider $(echo "$provider" | sed 's:\/:\.:g') = ${version}<br>"
+              # generate terraform lock file for each provider in each terratest example directory
+              echo -en "provider \"${{ inputs.registry_hostname }}/$provider\" {\n  version = \"$version\"\n}\n\n" >> "$d/.terraform.lock.hcl"
+            done
+            cat "$d/.terraform.lock.hcl"
+            echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
+          done
 
       - name: Run Terratest
         id: terratest_run
@@ -316,8 +452,9 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.TERRATEST_AWS_DEFAULT_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.TERRATEST_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TERRATEST_AWS_SECRET_ACCESS_KEY }}
-          TFE_HOSTNAME: ${{ inputs.tfe_hostname }}
-          TFE_TOKEN: ${{ secrets.TFE_API_TOKEN }}
+          SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
+          SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
+          SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
         run: |
           go test -v -timeout 30m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
@@ -374,6 +511,7 @@ jobs:
       - terraform-docs
       - terraform-lint
       - terraform-security
+      - terratest-config
       - terratest-run
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
