@@ -114,7 +114,6 @@ jobs:
     outputs:
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
-      github_token: ${{ steps.github_app_token.outputs.token }}
 
     steps:
       - name: Get Github Access Token
@@ -185,11 +184,21 @@ jobs:
       diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ needs.terraform-fmt.outputs.github_token }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Run Terraform Docs
         id: docs
@@ -215,11 +224,21 @@ jobs:
       lint_status: ${{ steps.lint.outcome }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ needs.terraform-fmt.outputs.github_token }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Get TFLint Config
         uses: terraform-linters/tflint-load-config-action@v2
@@ -234,7 +253,7 @@ jobs:
         uses: reviewdog/action-tflint@v1
         id: lint
         with:
-          github_token: ${{ needs.terraform-fmt.outputs.github_token }}
+          github_token: ${{ steps.github_app_token.outputs.token }}
           working_directory: ${{ inputs.terraform_working_directory }}
           tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
@@ -255,17 +274,27 @@ jobs:
       security_status: ${{ steps.security.outcome }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ needs.terraform-fmt.outputs.github_token }}
+          token: ${{ steps.github_app_token.outputs.token }}
       
       - name: Run Trivy
         uses: reviewdog/action-trivy@v1
         id: security
         with:
-          github_token: ${{ needs.terraform-fmt.outputs.github_token }}
+          github_token: ${{ steps.github_app_token.outputs.token }}
           working_directory: ${{ inputs.terraform_working_directory }}
           reporter: github-pr-check
           fail_level: error
@@ -295,7 +324,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ needs.terraform-fmt.outputs.github_token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           # Ensure that the checkout action does not persist credentials to not override private module access
           persist-credentials: false
 
@@ -374,55 +403,22 @@ jobs:
         working-directory: ${{ inputs.terraform_working_directory }}
         continue-on-error: true
 
-      - name: Update Pull Request with Plan
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' && github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
-        env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-        with:
-          github-token: ${{ needs.terraform-fmt.outputs.github_token }}
-          script: |
-            const output = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            // Look for existing plan comment
-            const comments = await github.rest.issues.listComments({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-
-            const botComment = comments.data.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('#### Terraform Plan 📖')
-            );
-
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                comment_id: botComment.id,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: output
-              });
-            } else {
-              // Create new comment if none exists
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: output
-              });
-            }
+      - name: Terraform Plan Summary
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        run: |
+          echo '### TERRAFORM PLAN SUMMARY :memo:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '**Status:** `${{ steps.plan.outcome }}`' >> $GITHUB_STEP_SUMMARY
+          echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
+          echo '**Action:** `${{ github.event_name }}`' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '<details><summary>Show Plan Output</summary>' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```terraform' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.plan.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '</details>' >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Plan Status
         if: ${{ steps.set_execution_type.outputs.type == 'plan' && steps.plan.outcome == 'failure' }}
@@ -438,6 +434,24 @@ jobs:
             terraform apply -auto-approve -no-color -input=false
           fi
         working-directory: ${{ inputs.terraform_working_directory }}
+
+      - name: Terraform Apply Summary
+        if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
+        run: |
+          echo '### TERRAFORM APPLY SUMMARY :rocket:' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '**Status:** `${{ steps.apply.outcome }}`' >> $GITHUB_STEP_SUMMARY
+          echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
+          echo '**Action:** `${{ github.event_name }}`' >> $GITHUB_STEP_SUMMARY
+          echo '**Branch:** `${{ github.ref }}`' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '<details><summary>Show Apply Output</summary>' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```terraform' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.apply.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '</details>' >> $GITHUB_STEP_SUMMARY
 
   workflow-summary:
     needs:
