@@ -466,11 +466,11 @@ jobs:
       - name: Workflow Summary
         env:
           TERRAFORM_VERSION: ${{ inputs.terraform_version }}
-          TF_FMT_RESULT: ${{ needs.terraform-fmt.outputs.fmt_status == 'success' && ':white_check_mark:' || ':x:' }}
-          TF_DOCS_RESULT: ${{ needs.terraform-docs.outputs.docs_status == 'success' && ':white_check_mark:' || ':x:' }}
-          TF_LINT_RESULT: ${{ needs.terraform-lint.outputs.lint_status == 'success' && ':white_check_mark:' || ':x:' }}
-          TF_SECURITY_RESULT: ${{ needs.terraform-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:' }}
-          TF_EXECUTION_RESULT: ${{ needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || (needs.terraform-execution.outputs.execution_status == '' && ':heavy_minus_sign:' || ':x:') }}
+          TF_FMT_RESULT: ${{ needs.terraform-fmt.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-fmt.outputs.fmt_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_DOCS_RESULT: ${{ needs.terraform-docs.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-docs.outputs.docs_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_LINT_RESULT: ${{ needs.terraform-lint.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-lint.outputs.lint_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_SECURITY_RESULT: ${{ needs.terraform-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_EXECUTION_RESULT: ${{ needs.terraform-execution.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_TYPE: ${{ needs.terraform-execution.outputs.execution_type }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
