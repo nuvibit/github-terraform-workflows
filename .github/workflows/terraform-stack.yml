@@ -121,8 +121,8 @@ jobs:
         id: github_app_token
         uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets.ADMIN_APP_ID }}
-          private_key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
@@ -332,8 +332,8 @@ jobs:
         id: private_module_access
         uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
-          private_key: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
+          private-key: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
           # If owner is set and repositories is empty, access will be scoped to all repositories in the provided repository owner's installation
           owner: ${{ inputs.terraform_modules_github_owner }}
 
