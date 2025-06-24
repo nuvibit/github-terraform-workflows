@@ -150,7 +150,7 @@ jobs:
   terraform-docs:
     needs:
       - terraform-fmt
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
+    # if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       docs_status: ${{ steps.docs.outcome }}
@@ -180,7 +180,7 @@ jobs:
     needs:
       - terraform-fmt
       - terraform-docs
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    # if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
@@ -219,7 +219,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    # if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
@@ -252,7 +252,8 @@ jobs:
       - terraform-docs
       - terraform-lint
       - terraform-security
-    if: ${{ inputs.enable_terraform_execution && needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    # if: ${{ inputs.enable_terraform_execution && needs.terraform-fmt.outputs.diff_exists == 'false' && needs.terraform-docs.outputs.diff_exists == 'false' }}
+    if: ${{ inputs.enable_terraform_execution }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       execution_status: ${{ steps.plan.outcome || steps.apply.outcome }}
