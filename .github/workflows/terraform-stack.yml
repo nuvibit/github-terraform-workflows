@@ -89,13 +89,6 @@ on:
       TERRAFORM_MODULES_APP_PRIVATE_KEY:
         required: false
 
-# Grant necessary permissions for the workflow
-permissions:
-  contents: write        # Required to push changes back to the repository
-  pull-requests: write   # Required to update pull request comments
-  issues: write          # Required to create/update issue comments
-  checks: write          # Required for status checks
-
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
 
