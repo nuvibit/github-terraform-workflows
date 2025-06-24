@@ -106,14 +106,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Setup Terraform
-        if: ${{ inputs.use_opentofu == 'false' }}
+        if: ${{ inputs.use_opentofu == false }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
 
       - name: Setup OpenTofu
-        if: ${{ inputs.use_opentofu == 'true' }}
+        if: ${{ inputs.use_opentofu == true }}
         uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: ${{ inputs.terraform_version }}
@@ -267,14 +267,14 @@ jobs:
           persist-credentials: false
 
       - name: Setup Terraform
-        if: ${{ inputs.use_opentofu == 'false' }}
+        if: ${{ inputs.use_opentofu == false }}
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
 
       - name: Setup OpenTofu
-        if: ${{ inputs.use_opentofu == 'true' }}
+        if: ${{ inputs.use_opentofu == true }}
         uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: ${{ inputs.terraform_version }}
