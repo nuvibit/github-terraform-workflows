@@ -124,7 +124,7 @@ on:
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
 
-# Required permissions for OIDC authentication
+# Grant necessary permissions for the workflow
 permissions:
   id-token: write   # This is required for requesting the JWT
   contents: read    # This is required for actions/checkout
