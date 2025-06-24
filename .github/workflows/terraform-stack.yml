@@ -211,7 +211,7 @@ jobs:
           working_directory: ${{ inputs.terraform_working_directory }}
           tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
-          fail_on_error: true
+          fail_level: error
           filter_mode: nofilter
           level: error
           flags: ""
@@ -241,7 +241,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: ${{ inputs.terraform_working_directory }}
           reporter: github-pr-check
-          fail_on_error: true
+          fail_level: error
           filter_mode: nofilter
           level: error
           flags: ""
