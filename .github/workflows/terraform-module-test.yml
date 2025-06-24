@@ -114,8 +114,6 @@ on:
         required: false
         type: string
     secrets:
-      # GITHUB_PAT:
-      #   required: true
       SPACELIFT_API_KEY_ENDPOINT:
         required: false
       SPACELIFT_API_KEY_ID:
@@ -342,10 +340,6 @@ jobs:
       matrix: ${{ fromJson(needs.terratest-config.outputs.matrix) }}
 
     steps:
-      # - name: Set Git Access Token
-      #   run: |
-      #     git config --global url."https://oauth2:${{ secrets.GITHUB_PAT }}@github.com".insteadOf https://github.com
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
