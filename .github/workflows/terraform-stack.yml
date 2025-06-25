@@ -100,9 +100,9 @@ on:
         type: string
     secrets:
       # GitHub App credentials to use instead of default GITHUB_TOKEN to avoid not triggering workflow runs on commit
-      ADMIN_APP_ID:
+      GH_APP_ID:
         required: true
-      ADMIN_APP_PRIVATE_KEY:
+      GH_APP_PRIVATE_KEY:
         required: true
       # (optional) GitHub App credentials for accessing private Terraform modules (requires 'terraform_modules_auth' to be set to "github-app" and 'terraform_modules_github_owner' to be set)
       TERRAFORM_MODULES_APP_ID:
@@ -128,8 +128,8 @@ jobs:
         id: github_app_token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.ADMIN_APP_ID }}
-          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
@@ -196,8 +196,8 @@ jobs:
         id: github_app_token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.ADMIN_APP_ID }}
-          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
@@ -236,8 +236,8 @@ jobs:
         id: github_app_token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.ADMIN_APP_ID }}
-          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
@@ -286,8 +286,8 @@ jobs:
         id: github_app_token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.ADMIN_APP_ID }}
-          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''

@@ -198,8 +198,8 @@ The Terraform Stack workflow consists of the following steps:
 ### Secrets [Terraform Stack Workflow]
 | Name | Description | Required |
 |------|-------------|----------|
-| `ADMIN_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | true |
-| `ADMIN_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | true |
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | true |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | true |
 | `TERRAFORM_MODULES_APP_ID` | GitHub App ID for accessing private Terraform modules | false |
 | `TERRAFORM_MODULES_APP_PRIVATE_KEY` | GitHub App private key for accessing private modules | false |
 | `TERRAFORM_REGISTRY_TOKEN` | Token for accessing private Terraform module registry | false |
@@ -226,8 +226,8 @@ jobs:
       enable_terraform_execution: false # (default) Run static checks only
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
-      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
-      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [Terraform Stack Workflow - Complete CI/CD]
@@ -253,8 +253,8 @@ jobs:
       default_branch: "main"
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
-      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
-      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [OpenTofu Stack Workflow - Complete CI/CD]
@@ -280,8 +280,8 @@ jobs:
       terraform_version: "1.8.0"
       terraform_working_directory: "./infrastructure"
     secrets:
-      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
-      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [Private Modules & Registry Example]
@@ -306,8 +306,8 @@ jobs:
       terraform_registry_hostname: "registry.example.com"
       aws_oidc_role_arn: ${{ secrets.AWS_OIDC_ROLE_ARN }}
     secrets:
-      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
-      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
       TERRAFORM_MODULES_APP_ID: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
       TERRAFORM_MODULES_APP_PRIVATE_KEY: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
       TERRAFORM_REGISTRY_TOKEN: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
