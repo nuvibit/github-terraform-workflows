@@ -48,6 +48,11 @@ on:
         default: ''
         required: false
         type: string
+      terraform_registry_hostname:
+        description: 'Hostname of Terraform module registry (public or private). If using a private registry, ensure that the "TERRAFORM_REGISTRY_TOKEN" secret is set.'
+        default: 'app.terraform.io'
+        required: false
+        type: string
       tflint_repo:
         description: 'Public repo where tflint config is stored'
         default: 'nuvibit/github-tflint-config'
@@ -103,6 +108,9 @@ on:
       TERRAFORM_MODULES_APP_ID:
         required: false
       TERRAFORM_MODULES_APP_PRIVATE_KEY:
+        required: false
+      # (optional) Token for accessing private Terraform module registry (requires 'terraform_registry_hostname' to be set to a private registry)
+      TERRAFORM_REGISTRY_TOKEN:
         required: false
 
 # Ensures that only one workflow runs at a time
@@ -319,42 +327,6 @@ jobs:
       execution_type: ${{ steps.set_execution_type.outputs.type }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Ensure that the checkout action does not persist credentials to not override private module access
-          persist-credentials: false
-
-      - name: Setup Terraform
-        if: ${{ inputs.use_opentofu == false }}
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ inputs.terraform_version }}
-          terraform_wrapper: false
-
-      - name: Setup OpenTofu
-        if: ${{ inputs.use_opentofu == true }}
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: ${{ inputs.terraform_version }}
-          tofu_wrapper: false
-
-      - name: Determine Execution Type
-        id: set_execution_type
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "type=plan" >> $GITHUB_OUTPUT
-            echo "::notice::Will run Terraform Plan for pull request"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
-            echo "type=apply" >> $GITHUB_OUTPUT
-            echo "::notice::Will run Terraform Apply for push to ${{ inputs.default_branch }}"
-          else
-            echo "type=skip" >> $GITHUB_OUTPUT
-            echo "::notice::Skipping Terraform execution - not a PR or push to ${{ inputs.default_branch }}"
-          fi
-
       - name: Get Private Module Access Token
         if: ${{ inputs.terraform_modules_auth == 'github-app' }}
         id: private_module_access
@@ -369,6 +341,46 @@ jobs:
         if: ${{ inputs.terraform_modules_auth == 'github-app' }}
         run: |
           git config --global url."https://x-access-token:${{ steps.private_module_access.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure that the checkout action does not persist credentials to not override private module access
+          persist-credentials: false
+
+      - name: Setup Terraform
+        if: ${{ inputs.use_opentofu == false }}
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.terraform_registry_hostname }}
+          cli_config_credentials_token: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
+
+      - name: Setup OpenTofu
+        if: ${{ inputs.use_opentofu == true }}
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ inputs.terraform_version }}
+          tofu_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.terraform_registry_hostname }}
+          cli_config_credentials_token: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
+
+      - name: Determine Execution Type
+        id: set_execution_type
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "type=plan" >> $GITHUB_OUTPUT
+            echo "::notice::Will run Terraform Plan for pull request"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
+            echo "type=apply" >> $GITHUB_OUTPUT
+            echo "::notice::Will run Terraform Apply for push to ${{ inputs.default_branch }}"
+          else
+            echo "type=skip" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping Terraform execution - not a PR or push to ${{ inputs.default_branch }}"
+          fi
 
       - name: Configure AWS credentials
         if: ${{ inputs.aws_oidc_role_arn != '' }}

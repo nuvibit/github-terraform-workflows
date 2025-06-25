@@ -23,6 +23,16 @@ on:
         default: 'main.tf'
         required: false
         type: string
+      terraform_modules_auth:
+        description: 'Authentication method for private modules (none|github-app). If set to "github-app", the secrets "TERRAFORM_MODULES_APP_ID" and "TERRAFORM_MODULES_APP_PRIVATE_KEY" are required.'
+        default: 'none'
+        required: false
+        type: string
+      terraform_modules_github_owner:
+        description: 'GitHub owner/organization name for private modules (required when terraform_modules_auth is github-app)'
+        default: ''
+        required: false
+        type: string
       terraform_registry_hostname:
         description: 'Hostname for terraform registry used to download providers'
         default: 'registry.terraform.io'
@@ -114,6 +124,20 @@ on:
         required: false
         type: string
     secrets:
+      # GitHub App credentials to use instead of default GITHUB_TOKEN to avoid not triggering workflow runs on commit
+      ADMIN_APP_ID:
+        required: true
+      ADMIN_APP_PRIVATE_KEY:
+        required: true
+      # (optional) GitHub App credentials for accessing private Terraform modules (requires 'terraform_modules_auth' to be set to "github-app" and 'terraform_modules_github_owner' to be set)
+      TERRAFORM_MODULES_APP_ID:
+        required: false
+      TERRAFORM_MODULES_APP_PRIVATE_KEY:
+        required: false
+      # (optional) Token for accessing private Terraform module registry (requires 'terraform_registry_hostname' to be set to a private registry)
+      TERRAFORM_REGISTRY_TOKEN:
+        required: false
+      # (optional) Spacelift API key credentials for Spacelift integration
       SPACELIFT_API_KEY_ENDPOINT:
         required: false
       SPACELIFT_API_KEY_ID:
@@ -137,10 +161,21 @@ jobs:
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Setup Terraform
         if: ${{ inputs.use_opentofu == 'false' }}
@@ -180,7 +215,7 @@ jobs:
       - name: Push Changes
         uses: ad-m/github-push-action@v0.8.0
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.github_app_token.outputs.token }}
           branch: ${{ github.event.pull_request.head.ref }}
 
   terraform-docs:
@@ -193,10 +228,21 @@ jobs:
       diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Check For Submodules
         id: check_submodules
@@ -233,10 +279,21 @@ jobs:
       lint_status: ${{ steps.lint.outcome }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Get TFLint Config
         uses: terraform-linters/tflint-load-config-action@v2
@@ -251,7 +308,7 @@ jobs:
         uses: reviewdog/action-tflint@v1
         id: lint
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.github_app_token.outputs.token }}
           tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
           fail_on_error: true
@@ -271,10 +328,21 @@ jobs:
       security_status: ${{ steps.security.outcome }}
 
     steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.ADMIN_APP_ID }}
+          private-key: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+          # if owner and repositories are empty, access will be scoped to only the current repository
+          # owner: ''
+          # repositories: ''
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Check For Examples
         run: |
@@ -287,7 +355,7 @@ jobs:
         uses: reviewdog/action-trivy@v1
         id: security
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.github_app_token.outputs.token }}
           working_directory: ${{ inputs.terratest_examples_path }}
           reporter: github-pr-check
           fail_on_error: true
@@ -340,10 +408,28 @@ jobs:
       matrix: ${{ fromJson(needs.terratest-config.outputs.matrix) }}
 
     steps:
+      - name: Get Private Module Access Token
+        if: ${{ inputs.terraform_modules_auth == 'github-app' }}
+        id: private_module_access
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
+          private-key: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
+          # If owner is set and repositories is empty, access will be scoped to all repositories in the provided repository owner's installation
+          owner: ${{ inputs.terraform_modules_github_owner }}
+
+      - name: Set Private Module Access Token
+        if: ${{ inputs.terraform_modules_auth == 'github-app' }}
+        run: |
+          git config --global url."https://x-access-token:${{ steps.private_module_access.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Ensure that the checkout action does not persist credentials to not override private module access
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -377,6 +463,8 @@ jobs:
         with:
           terraform_version: ${{ steps.from_requirements.outputs.terraform_version }}
           terraform_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.terraform_registry_hostname }}
+          cli_config_credentials_token: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 
       - name: Setup OpenTofu
         if: ${{ matrix.binary == 'opentofu' }}
@@ -384,6 +472,8 @@ jobs:
         with:
           tofu_version: ${{ steps.from_requirements.outputs.terraform_version }}
           tofu_wrapper: false
+          cli_config_credentials_hostname: ${{ inputs.terraform_registry_hostname }}
+          cli_config_credentials_token: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -458,7 +548,7 @@ jobs:
         id: terratest_run
         working-directory: ${{ inputs.terratest_path }}
         env:
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_DEFAULT_REGION: ${{ inputs.aws_default_region }}
           SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
           SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
           SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
@@ -526,10 +616,10 @@ jobs:
     steps:
       - name: Workflow Summary
         env:
-          TF_FMT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-fmt.outputs.fmt_status != 'success'] }}
-          TF_DOCS_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-docs.outputs.docs_status != 'success'] }}
-          TF_LINT_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-lint.outputs.lint_status != 'success'] }}
-          TF_SECURITY_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terraform-security.outputs.security_status != 'success'] }}
+          TF_FMT_RESULT: ${{ needs.terraform-fmt.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-fmt.outputs.fmt_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_DOCS_RESULT: ${{ needs.terraform-docs.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-docs.outputs.docs_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_LINT_RESULT: ${{ needs.terraform-lint.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-lint.outputs.lint_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_SECURITY_RESULT: ${{ needs.terraform-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_TERRATEST_RESULT: ${{ fromJSON('[":white_check_mark:", ":x:"]')[needs.terratest-run.outputs.terratest_status != 'success'] }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
