@@ -51,7 +51,7 @@ Ideal for teams wanting a complete Infrastructure as Code pipeline within GitHub
 
 - **GitHub Actions Role**: Handles everything - quality checks AND terraform execution
 - **Deployment Flow**: Plan on PR → Apply on merge to main branch
-- **Features**: PR comments with plan results, automated apply, full workflow visibility
+- **Features**: Plan/apply summaries in workflow results, automated execution, full workflow visibility
 - **Benefits**: Single platform for all IaC operations, simplified toolchain
 - **Configuration**: Set `enable_terraform_execution: true`
 
@@ -74,6 +74,29 @@ Choose the appropriate workflow category for your use case:
 - [Terraform Module Release Workflow](#terraform-module-release-workflow) - Automated semantic versioning and releases
 <br><br>
 
+## 🔒 **Enhanced Security Model**
+
+All workflows use **GitHub Apps** instead of the default `GITHUB_TOKEN` for enhanced security:
+
+### **Why GitHub Apps?**
+- **Scoped Permissions**: Apps can be granted specific, minimal permissions
+- **No User Association**: Not tied to individual user accounts  
+- **Audit Trail**: All actions are logged and attributed to the app
+- **Token Refresh**: Short-lived tokens that refresh automatically
+- **Repository-Specific**: Access can be limited to specific repositories
+
+### **Required Setup**
+1. **Create a GitHub App** in your organization settings
+2. **Grant Permissions**: `contents: write`, `pull-requests: write`, `issues: write`, `checks: write`
+3. **Install App**: Install on repositories / organization where workflows will run
+4. **Set Secrets**: Store App ID and private key as repository / organization secrets
+
+### **Private Module Access**
+For accessing private Terraform modules hosted on Github, create a separate GitHub App with:
+- **Permissions**: `contents: read`, `metadata: read` 
+- **Repository Access**: Only the module repositories needed
+- **Principle of Least Privilege**: Minimal access for maximum security
+
 ## Configuration Repositories (optional)
 - [`github-tflint-config`](https://github.com/nuvibit/github-tflint-config)
 - [`github-terratest-config`](https://github.com/nuvibit/github-terratest-config)
@@ -85,7 +108,7 @@ The reusable Github Workflows include the following public Github Actions:
 
 - [`@actions/checkout`](https://github.com/actions/checkout)
 - [`@actions/setup-go`](https://github.com/actions/setup-go)
-- [`@actions/github-script`](https://github.com/actions/github-script)
+- [`@actions/create-github-app-token`](https://github.com/actions/create-github-app-token)
 - [`@ad-m/github-push-action`](https://github.com/ad-m/github-push-action)
 - [`@aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials)
 - [`@cycjimmy/semantic-release-action`](https://github.com/cycjimmy/semantic-release-action)
@@ -95,6 +118,7 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@reviewdog/action-trivy`](https://github.com/reviewdog/action-trivy)
 - [`@terraform-docs/gh-actions`](https://github.com/terraform-docs/gh-actions)
 - [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
+- [`@webfactory/ssh-agent`](https://github.com/webfactory/ssh-agent)
 
 In addition to these Github Actions, custom bash scripts are run to avoid using [unverified actions](https://docs.github.com/de/apps/publishing-apps-to-github-marketplace/github-marketplace-overview/about-marketplace-badges#for-github-actions).
 
@@ -125,7 +149,11 @@ In addition to these Github Actions, custom bash scripts are run to avoid using 
 * **Terraform/OpenTofu Support**: Seamless switching between tools
 * **Quality Gates**: Format, documentation, lint, and security checks
 * **Optional Execution**: Enable terraform plan/apply with simple toggle
-* **PR Integration**: Plan results posted as PR comments
+* **GitHub App Authentication**: Enhanced security with scoped tokens instead of GITHUB_TOKEN
+* **Private Module Support**: Access private Terraform modules via GitHub App authentication
+* **Private Registry Support**: Support for private Terraform module registries
+* **AWS OIDC Integration**: Secure, keyless authentication with AWS using OpenID Connect
+* **Workflow Summaries**: Plan and apply results displayed in GitHub workflow summaries
 * **Branch Protection**: Apply only runs on specified default branch
 * **Flexible Configuration**: Extensive customization options
 
@@ -139,9 +167,9 @@ The Terraform Stack workflow consists of the following steps:
 4. **Terraform Security** - Security scanning with Trivy
 
 `Optional Steps (when enabled)`\
-5. **Terraform Plan** - On pull requests (posts results to PR)\
+5. **Terraform Plan** - On pull requests (results in workflow summary)\
 6. **Terraform Apply** - On push to default branch (auto-approve)\
-7. **Workflow Summary** - Centralized status reporting\
+7. **Workflow Summary** - Centralized status reporting with skip indicators\
 
 
 ### Inputs [Terraform Stack Workflow]
@@ -149,18 +177,32 @@ The Terraform Stack workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `use_opentofu` | Use OpenTofu instead of Terraform | `false` | false |
+| `enable_terraform_execution` | Enable terraform plan on pull requests and apply on push to default branch | `false` | false |
+| `aws_default_region` | Default AWS region to use for terraform execution | `eu-central-1` | false |
+| `aws_oidc_role_arn` | AWS OIDC role ARN to assume for terraform execution | `""` | false |
 | `terraform_version` | Terraform/OpenTofu version used inside github action | `latest` | false |
-| `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within (e.g. './infrastructure') | `.` | false |
+| `terraform_working_directory` | A relative path starting with '.' that Terraform will execute within | `.` | false |
+| `terraform_modules_auth` | Authentication method for private modules (none/github-app) | `none` | false |
+| `terraform_modules_github_owner` | GitHub owner/organization name for private modules | `""` | false |
+| `terraform_registry_hostname` | Hostname of Terraform module registry (public or private) | `app.terraform.io` | false |
 | `tflint_repo` | Public repo where tflint config is stored | `nuvibit/github-tflint-config` | false |
-| `tflint_repo_config_path` | Path to tflint config in tflint_repo (e.g. "aws/.tflint.hcl") | `""` | false |
+| `tflint_repo_config_path` | Path to tflint config in tflint_repo | `aws/.tflint.hcl` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
 | `tflint_version` | Tflint version to use in github action | `latest` | false |
 | `trivy_version` | Trivy version to use in github action | `latest` | false |
 | `commit_user` | Username which should be used for commits by github action | `github-actions` | false |
 | `commit_email` | Email which should be used for commits by github action | `noreply@github.com` | false |
 | `concurrency_group` | Name of concurrency group to manage concurrent github action runs | Auto-generated | false |
-| `enable_terraform_execution` | Enable terraform plan on pull requests and apply on push to default branch | `false` | false |
-| `default_branch` | Default branch name for terraform apply (e.g. main, master) | `main` | false |
+| `default_branch` | Default branch name for terraform apply | `main` | false |
+
+### Secrets [Terraform Stack Workflow]
+| Name | Description | Required |
+|------|-------------|----------|
+| `ADMIN_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | true |
+| `ADMIN_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | true |
+| `TERRAFORM_MODULES_APP_ID` | GitHub App ID for accessing private Terraform modules | false |
+| `TERRAFORM_MODULES_APP_PRIVATE_KEY` | GitHub App private key for accessing private modules | false |
+| `TERRAFORM_REGISTRY_TOKEN` | Token for accessing private Terraform module registry | false |
 <br>
 
 ### Usage [Terraform Stack Workflow - Static Checks Only]
@@ -179,11 +221,13 @@ on:
 
 jobs:
   terraform-stack:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
     with:
       enable_terraform_execution: false # (default) Run static checks only
-      tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
+    secrets:
+      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
+      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [Terraform Stack Workflow - Complete CI/CD]
@@ -202,12 +246,15 @@ on:
 
 jobs:
   terraform-stack:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
     with:
       enable_terraform_execution: true  # Enable complete CI/CD mode
+      aws_oidc_role_arn: ${{ secrets.AWS_OIDC_ROLE_ARN }}
       default_branch: "main"
-      tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
+    secrets:
+      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
+      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [OpenTofu Stack Workflow - Complete CI/CD]
@@ -225,12 +272,45 @@ on:
 
 jobs:
   opentofu-stack:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
     with:
       use_opentofu: true
       enable_terraform_execution: true
+      aws_oidc_role_arn: ${{ secrets.AWS_OIDC_ROLE_ARN }}
       terraform_version: "1.8.0"
       terraform_working_directory: "./infrastructure"
+    secrets:
+      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
+      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+```
+
+### Usage [Private Modules & Registry Example]
+*Using private Terraform modules and private registry*
+
+```yaml
+name: TERRAFORM STACK
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  terraform-stack:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
+    with:
+      enable_terraform_execution: true
+      terraform_modules_auth: "github-app"
+      terraform_modules_github_owner: "your-org"
+      terraform_registry_hostname: "registry.example.com"
+      aws_oidc_role_arn: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+    secrets:
+      ADMIN_APP_ID: ${{ secrets.ADMIN_APP_ID }}
+      ADMIN_APP_PRIVATE_KEY: ${{ secrets.ADMIN_APP_PRIVATE_KEY }}
+      TERRAFORM_MODULES_APP_ID: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
+      TERRAFORM_MODULES_APP_PRIVATE_KEY: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
+      TERRAFORM_REGISTRY_TOKEN: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 ```
 
 >## Terraform Module Test Workflow  
@@ -242,9 +322,14 @@ jobs:
 
 ### :white_check_mark: Features
 * **OIDC Authentication**: Secure, keyless authentication with AWS using OpenID Connect
+* **GitHub App Authentication**: Enhanced security with scoped tokens instead of GITHUB_TOKEN
+* **Private Module Support**: Access private Terraform modules via GitHub App authentication
+* **Private Registry Support**: Support for private Terraform module registries  
 * **Matrix Testing**: Support for testing multiple Terraform/OpenTofu versions and provider combinations
 * **Dynamic Provider Versions**: Automatic resolution of provider versions from requirements or latest versions
 * **Quality Gates**: Format, docs, lint, and security checks before integration testing
+* **Terratest Integration**: Comprehensive integration testing with Go-based Terratest framework
+* **Workflow Summaries**: Detailed test results displayed in GitHub workflow summaries
 * **Parallel Testing**: Configurable parallel test execution with `terratest_max_parallel`
 * **Automated Formatting**: Auto-commits formatting and documentation changes
 * **Comprehensive Reporting**: Detailed test summaries and workflow status in GitHub Actions
