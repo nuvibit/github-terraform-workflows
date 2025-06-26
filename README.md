@@ -1,4 +1,4 @@
-# GitHub Actions - Reusable Terraform and OpenTofu Workflows
+# GitHub Actions - Reusable Terraform / OpenTofu Workflows
 
 <!-- LOGO -->
 <picture>
