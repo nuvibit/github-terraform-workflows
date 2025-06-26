@@ -10,7 +10,7 @@
 <br/>
 
 <!-- DESCRIPTION -->
-Reusable [GitHub Workflows](https://docs.github.com/en/actions/learn-github-actions/) to run state-of-the-art Terraform and OpenTofu pipelines with flexible deployment strategies.\
+Reusable [GitHub Workflows](https://docs.github.com/en/actions/learn-github-actions/) to run state-of-the-art Terraform and OpenTofu pipelines with flexible deployment strategies. 
 Built by **Nuvibit**, the leading specialist in **sovereign AWS platforms** and creator of the **Nuvibit Terraform Collection (NTC)**.
 
 ## 🚀 **Two Workflow Categories**
@@ -56,11 +56,6 @@ Ideal for teams wanting a complete Infrastructure as Code pipeline within GitHub
 - **Configuration**: Set `enable_terraform_execution: true`
 
 Both approaches support **Terraform** and **OpenTofu**, provide comprehensive quality gates, and integrate seamlessly with cloud providers for infrastructure deployment.
-<br><br>
-
-<!-- DIAGRAM -->
-## Terraform Workflow
-![Terraform Workflow Diagram](https://github.com/nuvibit/github-terraform-workflows/blob/main/docs/terraform-workflow.png?raw=true)
 <br><br>
 
 ## Quick Start
