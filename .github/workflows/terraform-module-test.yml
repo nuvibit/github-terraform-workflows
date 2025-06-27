@@ -311,7 +311,7 @@ jobs:
           github_token: ${{ steps.github_app_token.outputs.token }}
           tflint_version: ${{ inputs.tflint_version }}
           reporter: github-pr-check
-          fail_on_error: true
+          fail_level: error
           filter_mode: nofilter
           level: error
           flags: ""
@@ -358,7 +358,7 @@ jobs:
           github_token: ${{ steps.github_app_token.outputs.token }}
           working_directory: ${{ inputs.terratest_examples_path }}
           reporter: github-pr-check
-          fail_on_error: true
+          fail_level: error
           filter_mode: nofilter
           level: error
           flags: ""
