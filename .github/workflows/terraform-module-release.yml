@@ -30,6 +30,7 @@ on:
         type: string
     secrets:
       # GitHub App credentials to use instead of default GITHUB_TOKEN to avoid not triggering workflow runs on commit
+      # make sure the Github App has the necessary permissions to push to the repository (bypassing branch protection rules)
       GH_APP_ID:
         required: true
       GH_APP_PRIVATE_KEY:
