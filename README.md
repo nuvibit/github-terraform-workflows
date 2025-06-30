@@ -113,7 +113,6 @@ The reusable Github Workflows include the following public Github Actions:
 - [`@reviewdog/action-trivy`](https://github.com/reviewdog/action-trivy)
 - [`@terraform-docs/gh-actions`](https://github.com/terraform-docs/gh-actions)
 - [`@terraform-linters/tflint-load-config-action`](https://github.com/terraform-linters/tflint-load-config-action)
-- [`@webfactory/ssh-agent`](https://github.com/webfactory/ssh-agent)
 
 In addition to these Github Actions, custom bash scripts are run to avoid using [unverified actions](https://docs.github.com/de/apps/publishing-apps-to-github-marketplace/github-marketplace-overview/about-marketplace-badges#for-github-actions).
 
