@@ -156,7 +156,7 @@ The Terraform Stack workflow consists of the following steps:
 
 `Always Runs`
 1. **Terraform Format** - Code formatting with auto-commit
-2. **Terraform Docs** - Documentation generation 
+2. **Terraform Docs** - Documentation generation (can be disabled with `enable_terraform_docs: false`)
 3. **Terraform Lint** - Static code analysis with TFLint
 4. **Terraform Security** - Security scanning with Trivy
 
@@ -171,6 +171,7 @@ The Terraform Stack workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `use_opentofu` | Use OpenTofu instead of Terraform | `false` | false |
+| `enable_terraform_docs` | Enable terraform-docs to generate documentation | `true` | false |
 | `enable_terraform_execution` | Enable terraform plan on pull requests and apply on push to default branch | `false` | false |
 | `aws_default_region` | Default AWS region to use for terraform execution | `eu-central-1` | false |
 | `aws_oidc_role_arn` | AWS OIDC role ARN to assume for terraform execution | `""` | false |
