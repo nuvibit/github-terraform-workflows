@@ -233,7 +233,7 @@ jobs:
       - terraform-docs
     # the next job should only run if there are no new commits from terraform-fmt or terraform-docs
     # if terraform-docs is disabled, it should only run if terraform-fmt has no changes
-    if: ${{ needs.terraform-fmt.outputs.diff_exists == 'false' }}
+    if: ${{ always() && !failure() && !cancelled() && needs.terraform-fmt.outputs.diff_exists == 'false' && (inputs.enable_terraform_docs == 'false' || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
