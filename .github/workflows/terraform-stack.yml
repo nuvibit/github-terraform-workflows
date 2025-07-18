@@ -263,6 +263,7 @@ jobs:
           source-path: ${{ inputs.tflint_repo_config_path }}
           source-ref: ${{ inputs.tflint_repo_ref }}
           destination-path: .tflint.hcl
+          token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Run TFLint
         uses: reviewdog/action-tflint@v1
