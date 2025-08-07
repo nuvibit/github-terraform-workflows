@@ -58,11 +58,6 @@ on:
         default: 'test'
         required: false
         type: string
-      terratest_examples_path:
-        description: 'Path to terratest examples directory'
-        default: 'examples'
-        required: false
-        type: string
       terratest_max_parallel:
         description: 'Maximum number of terratest runs that should run simultaneously'
         default: 1
@@ -344,10 +339,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
 
-      - name: Check For Examples
+      - name: Check For Required Terratest Directory
         run: |
-          if [[ ! -d "./${{ inputs.terratest_examples_path }}" ]]; then
-            echo "could not find required examples path '${{ inputs.terratest_examples_path }}' for terratest"
+          if [[ ! -d "./${{ inputs.terratest_path }}/complete" ]]; then
+            echo "could not find required directory '${{ inputs.terratest_path }}/complete' for terratest"
             exit 1
           fi
       
@@ -356,7 +351,7 @@ jobs:
         id: security
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
-          working_directory: ${{ inputs.terratest_examples_path }}
+          working_directory: ${{ inputs.terratest_path }}
           reporter: github-pr-check
           fail_level: error
           filter_mode: nofilter
@@ -486,7 +481,7 @@ jobs:
       - name: Generate Terraform Lock File
         if: ${{ matrix.provider_version != '' }}
         id: terraform_lock_file
-        working-directory: ${{ inputs.terratest_examples_path }}
+        working-directory: ${{ inputs.terratest_path }}
         env:
           PROVIDER_JSON: ${{ toJson(matrix.provider_version) }}
         run: |
