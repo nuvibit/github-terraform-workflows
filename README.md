@@ -82,7 +82,7 @@ All workflows use **GitHub Apps** instead of the default `GITHUB_TOKEN` for enha
 
 ### **Required Setup**
 1. **Create a GitHub App** in your organization settings
-2. **Grant Permissions**: `contents: write`, `pull-requests: write`, `issues: write`, `checks: write`
+2. **Grant Permissions**: `contents: write`, `pull-requests: write`, `issues: write`, `checks: write,`, `actions: write,`
 3. **Install App**: Install on repositories / organization where workflows will run
 4. **Set Secrets**: Store App ID and private key as repository / organization secrets
 
@@ -503,6 +503,82 @@ jobs:
     if: ${{ github.event_name == 'push' }}
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
 ```
+
+>## Cross Repo Workflow Trigger
+* **Purpose**: Trigger Workflow in another Reporsitory
+* **Target**: Infrastructure repositories, environment-specific deployments, cloud resource management
+* This workflow will always be used as a secondary job after ther TERRAFORM STACK workflow
+* This workflow triggers specific workflows of other repositories  
+* Used for dependencies between different deployments (i.e. identity-center has to be deployed after account-factory)
+* Use only in environments where Terraform or OpenTOFU is used natively
+
+
+### Workflow Steps
+`On workflow call`
+1. **Checkout** - Repository checkout
+2. **Get list of repositories from file** - Parse JSON file to determine which repository workflows should be triggered
+3. **Generate token for GH App** - Generate Token from Github App to get permission to trigger the workflows
+4. **Trigger Workflow in Another Repository** - Trigger the workflows in the repos found in step 2
+
+### Inputs [Cross Repo Workflow Trigger]
+| Name | Description | Default | Required |
+|------|-------------|---------|----------|
+| `target_repos_file` | Path to the JSON file specifying repository names used to trigger workflows | `.github/workflows/target_repos.json` | false |
+| `gh_org_name` | Name of the GitHub organisation owning the target repositories | none | true |
+
+### Secrets [Cross Repo Workflow Trigger]
+| Name | Description | Required |
+|------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | true |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | true |
+
+### Usage [Cross Repo Workflow Trigger]
+```yaml
+name: TERRAFORM STACK
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform-stack:
+    [...]
+    
+  trigger:
+    if: ${{ github.event_name == 'push' ||  github.event_name == 'repository_dispatch' }}
+    needs: terraform-stack
+    uses: nuvibit/github-terraform-workflows/.github/workflows/trigger.yml@v1
+    with:
+      gh_org_name: "nuvibit-c2"
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
+### Target Repos JSON File Example
+```json
+[
+  "sample-repo-1",
+  "sample-repo-2",
+  "sample-repo-n"
+]
+```
+
+### Workflow definition in target repositories
+```yaml
+name: TERRAFORM STACK
+on:
+  repository_dispatch:
+    types: [trigger-workflow]
+
+jobs:
+  [...]
+
+```
+This section is required for triggering the workflow. In most cases, the workflow is also triggered by pull requests and pushes.
 
 <!-- AUTHORS -->
 ## Authors

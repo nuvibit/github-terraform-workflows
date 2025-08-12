@@ -1,0 +1,77 @@
+name: Pipeline Trigger
+
+on:
+  workflow_call:
+    inputs:
+      target_repos_file:
+        description: 'Path to json file containing the list of repositories where the workflows should be triggered.'
+        default: ".github/workflows/target_repos.json"
+        required: false
+        type: string
+      gh_org_name:
+        description: 'Name of the GitHub organisation owning the target repositories'
+        required: true
+        type: string
+
+      APP_ID:
+        description: 'ID of the GitHub app used to grant permission to trigger the workflows'
+        required: true
+        type: string
+    
+    secrets:
+      GH_APP_ID:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true 
+jobs:
+  get-repositories:
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.get_repos.outputs.repos }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ inputs.target_repos_file }}
+          sparse-checkout-cone-mode: false
+
+      - name: Get list of repositories from file
+        id: get_repos
+        run: |
+          JSON=$(jq -r @json <<< cat ${{ inputs.target_repos_file }})
+          echo "repos=$JSON" >> $GITHUB_OUTPUT
+  
+  trigger:
+    needs:
+      - get-repositories
+    if: ${{ fromJson(needs.get-repositories.outputs.repos)[0] != null }}
+ 
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target_repo: ${{ fromJson(needs.get-repositories.outputs.repos) }}
+    steps:
+      - name: Generate token for GH App
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: ${{ matrix.target_repo }}
+
+      - name: Trigger Workflow in another Repository
+        run: |
+          # Set the required variables
+          repo_owner="${{ inputs.gh_org_name }} 
+          repo_name=${{ matrix.target_repo }}
+          event_type="trigger-workflow" 
+  
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ steps.generate-token.outputs.token }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/$repo_owner/$repo_name/dispatches \
+            -d "{\"event_type\": \"$event_type\""
+
