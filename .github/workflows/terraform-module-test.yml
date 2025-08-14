@@ -522,7 +522,7 @@ jobs:
                   fi
                 done
               elif [[ "$version" == "FROM_REQUIREMENTS" ]]; then
-                version_match=$(grep -zoP 'required_providers\W*\{(.|\n)*?source\W*=\W*"$provider"(.|\n)*?version\W*=\W*"\D*?(\d+\.\d+\.?\d*)"' $GITHUB_WORKSPACE/*.tf | grep -zoP '(\d+\.\d+\.?\d*)')
+                version_match=$(grep -zoP "required_providers\W*\{(.|\n)*?source\W*=\W*\"$provider\"(.|\n)*?version\W*=\W*\"\D*?(\d+\.\d+\.?\d*)" $GITHUB_WORKSPACE/*.tf | grep -zoP '(\d+\.\d+\.?\d*)')
                 version=$(echo $version_match | grep -zoP '[\d\.]+')
                 num="${version//[^.]}"
                 count="${#num}"
