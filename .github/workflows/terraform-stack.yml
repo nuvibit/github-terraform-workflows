@@ -387,12 +387,12 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "type=plan" >> $GITHUB_OUTPUT
             echo "::notice::Will run Terraform Plan for pull request"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
+          elif [[ ("${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "repository_dispatch") && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
             echo "type=apply" >> $GITHUB_OUTPUT
             echo "::notice::Will run Terraform Apply for push to ${{ inputs.default_branch }}"
           else
             echo "type=skip" >> $GITHUB_OUTPUT
-            echo "::notice::Skipping Terraform execution - not a PR or push to ${{ inputs.default_branch }}"
+            echo "::notice::Skipping Terraform execution - not a PR , push or trigger to ${{ inputs.default_branch }}"
           fi
 
       - name: Configure AWS credentials
