@@ -144,8 +144,12 @@ on:
         required: false
       SPACELIFT_API_KEY_SECRET:
         required: false
-      # (optional) Github token to use with github terraform provider
+      # (optional) Github Token and/or App credentials to use with github terraform provider
       GH_PROVIDER_TOKEN:
+        required: false
+      GH_PROVIDER_APP_ID:
+        required: false
+      GH_PROVIDER_PRIVATE_KEY:
         required: false
 
 # Ensures that only one workflow runs at a time
@@ -556,6 +560,8 @@ jobs:
           SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
           SPACELIFT_API_KEY_SECRET: ${{ secrets.SPACELIFT_API_KEY_SECRET }}
           GITHUB_TOKEN: ${{ secrets.GH_PROVIDER_TOKEN }}
+          GITHUB_APP_ID: ${{ secrets.GH_PROVIDER_APP_ID }}
+          GITHUB_APP_PEM_FILE: ${{ secrets.GH_PROVIDER_PRIVATE_KEY }}
         run: |
           go test -v -timeout ${{ inputs.terratest_timeout_in_minutes }}m 2>&1 | tee >(./terratest_log_parser_linux_amd64)
           test ${PIPESTATUS[0]} -eq 0
