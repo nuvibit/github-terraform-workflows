@@ -359,7 +359,7 @@ jobs:
           fi
       
       - name: Run Trivy
-        uses: reviewdog/action-trivy@v1
+        uses: reviewdog/action-trivy@v1.13.10
         id: security
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
