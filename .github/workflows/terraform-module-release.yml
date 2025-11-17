@@ -61,7 +61,7 @@ jobs:
           fetch-depth: 0
 
       - name: Release Terraform Module
-        uses: cycjimmy/semantic-release-action@v4
+        uses: cycjimmy/semantic-release-action@v6
         id: semantic
         with:
           semantic_version: ${{ inputs.semantic_version }}
