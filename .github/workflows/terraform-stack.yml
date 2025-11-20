@@ -423,10 +423,13 @@ jobs:
         id: plan
         run: |
           if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu plan -no-color -input=false
+            tofu plan -no-color -input=false 2>&1 | tee plan_output.txt
           else
-            terraform plan -no-color -input=false
+            terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
           fi
+          echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat plan_output.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
         working-directory: ${{ inputs.terraform_working_directory }}
         continue-on-error: true
 
@@ -442,7 +445,7 @@ jobs:
           echo '<details><summary>Show Plan Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.plan.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          cat ${{ inputs.terraform_working_directory }}/plan_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
@@ -456,9 +459,9 @@ jobs:
         id: apply
         run: |
           if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu apply -auto-approve -no-color -input=false
+            tofu apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
           else
-            terraform apply -auto-approve -no-color -input=false
+            terraform apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
           fi
         working-directory: ${{ inputs.terraform_working_directory }}
 
@@ -475,7 +478,7 @@ jobs:
           echo '<details><summary>Show Apply Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.apply.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          cat ${{ inputs.terraform_working_directory }}/apply_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
