@@ -336,7 +336,7 @@ jobs:
     if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
-      execution_status: ${{ steps.plan.outcome || steps.apply.outcome }}
+      execution_status: ${{ steps.set_plan_status.outputs.status || steps.set_apply_status.outputs.status }}
       execution_type: ${{ steps.set_execution_type.outputs.type }}
 
     steps:
@@ -454,6 +454,11 @@ jobs:
         if: ${{ steps.set_execution_type.outputs.type == 'plan' && steps.plan.outcome == 'failure' }}
         run: exit 1
 
+      - name: Set Execution Status
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        id: set_plan_status
+        run: echo "status=${{ steps.plan.outcome }}" >> $GITHUB_OUTPUT
+
       - name: Terraform Apply
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         id: apply
@@ -482,6 +487,11 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
+
+      - name: Set Execution Status
+        if: ${{ always() && steps.set_execution_type.outputs.type == 'apply' }}
+        id: set_apply_status
+        run: echo "status=${{ steps.apply.outcome }}" >> $GITHUB_OUTPUT
 
   workflow-summary:
     needs:
