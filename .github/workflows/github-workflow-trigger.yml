@@ -1,0 +1,237 @@
+name: TRIGGER WORKFLOW
+
+on:
+  workflow_call:
+    inputs:
+      github_runner:
+        description: 'Name of GitHub-hosted runner or self-hosted runner'
+        default: 'ubuntu-latest'
+        required: false
+        type: string
+      trigger_on_event:
+        description: 'Trigger workflows on this event type (pull_request, push, both)'
+        default: 'push'
+        required: false
+        type: string
+      trigger_workflows:
+        description: 'JSON array of workflows to trigger [{"repo": "repo-name", "workflow": "workflow.yml", "ref": "main"}]'
+        required: true
+        type: string
+      wait_for_completion:
+        description: 'Wait for triggered workflows to complete before finishing'
+        default: false
+        required: false
+        type: boolean
+      fail_on_error:
+        description: 'Fail this workflow if any triggered workflow fails'
+        default: false
+        required: false
+        type: boolean
+      default_branch:
+        description: 'Default branch name (e.g. main, master)'
+        default: 'main'
+        required: false
+        type: string
+    secrets:
+      GH_APP_ID:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  trigger-workflows:
+    runs-on: ${{ inputs.github_runner }}
+    if: |
+      (inputs.trigger_on_event == 'pull_request' && github.event_name == 'pull_request') ||
+      (inputs.trigger_on_event == 'push' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.default_branch)) ||
+      (inputs.trigger_on_event == 'both' && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.default_branch))))
+
+    steps:
+      - name: Get Github Access Token
+        id: github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # Grant access to all repositories in the organization
+          owner: ${{ github.repository_owner }}
+
+      - name: Parse Trigger Configuration
+        id: parse_config
+        run: |
+          echo "Parsing trigger configuration..."
+          echo '${{ inputs.trigger_workflows }}' | jq -r '.[] | @json' > /tmp/workflows.json
+          echo "Configuration parsed successfully"
+
+      - name: Trigger Workflows
+        id: trigger
+        run: |
+          # Read workflows configuration
+          workflows=$(cat /tmp/workflows.json)
+          
+          # Initialize arrays to track triggered workflows
+          declare -a triggered_repos=()
+          declare -a triggered_run_ids=()
+          declare -a triggered_names=()
+          
+          echo "### TRIGGERED WORKFLOWS :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | Workflow | Status | Run ID |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          
+          # Iterate through each workflow configuration
+          while IFS= read -r workflow_json; do
+            owner="${{ github.repository_owner }}"
+            repo=$(echo "$workflow_json" | jq -r '.repo')
+            workflow=$(echo "$workflow_json" | jq -r '.workflow')
+            ref=$(echo "$workflow_json" | jq -r '.ref // "main"')
+            inputs=$(echo "$workflow_json" | jq -r '.inputs // "{}"')
+            
+            echo "::notice::Triggering workflow '$workflow' in $owner/$repo (ref: $ref)"
+            
+            # Prepare inputs JSON
+            if [ "$inputs" != "{}" ]; then
+              inputs_payload="{\"ref\":\"$ref\",\"inputs\":$inputs}"
+            else
+              inputs_payload="{\"ref\":\"$ref\"}"
+            fi
+            
+            # Trigger the workflow
+            response=$(curl -s -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ steps.github_app_token.outputs.token }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$owner/$repo/actions/workflows/$workflow/dispatches" \
+              -d "$inputs_payload")
+            
+            # Check if trigger was successful (empty response means success)
+            if [ -z "$response" ]; then
+              echo "| [$owner/$repo](https://github.com/$owner/$repo) | $workflow | :white_check_mark: Triggered | - |" >> $GITHUB_STEP_SUMMARY
+              
+              # Store for later if we need to wait
+              if [ "${{ inputs.wait_for_completion }}" == "true" ]; then
+                triggered_repos+=("$owner/$repo")
+                triggered_names+=("$workflow")
+                
+                # Wait a moment for the run to be created
+                sleep 5
+                
+                # Get the latest run ID for this workflow
+                run_id=$(curl -s -H "Accept: application/vnd.github+json" \
+                  -H "Authorization: Bearer ${{ steps.github_app_token.outputs.token }}" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "https://api.github.com/repos/$owner/$repo/actions/workflows/$workflow/runs?per_page=1" | \
+                  jq -r '.workflow_runs[0].id // empty')
+                
+                if [ -n "$run_id" ]; then
+                  triggered_run_ids+=("$run_id")
+                  echo "::notice::Workflow run ID: $run_id"
+                fi
+              fi
+            else
+              echo "| [$owner/$repo](https://github.com/$owner/$repo) | $workflow | :x: Failed | - |" >> $GITHUB_STEP_SUMMARY
+              echo "::error::Failed to trigger workflow: $response"
+              
+              if [ "${{ inputs.fail_on_error }}" == "true" ]; then
+                exit 1
+              fi
+            fi
+            
+          done < /tmp/workflows.json
+          
+          # Export arrays for next step
+          if [ "${{ inputs.wait_for_completion }}" == "true" ]; then
+            echo "TRIGGERED_REPOS=${triggered_repos[@]}" >> $GITHUB_ENV
+            echo "TRIGGERED_RUN_IDS=${triggered_run_ids[@]}" >> $GITHUB_ENV
+            echo "TRIGGERED_NAMES=${triggered_names[@]}" >> $GITHUB_ENV
+          fi
+
+      - name: Wait for Workflows Completion
+        if: ${{ inputs.wait_for_completion }}
+        run: |
+          # Convert space-separated strings to arrays
+          IFS=' ' read -ra repos <<< "$TRIGGERED_REPOS"
+          IFS=' ' read -ra run_ids <<< "$TRIGGERED_RUN_IDS"
+          IFS=' ' read -ra names <<< "$TRIGGERED_NAMES"
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### WORKFLOW COMPLETION STATUS :hourglass_flowing_sand:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | Workflow | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          
+          all_success=true
+          
+          # Monitor each triggered workflow
+          for i in "${!repos[@]}"; do
+            repo="${repos[$i]}"
+            run_id="${run_ids[$i]}"
+            name="${names[$i]}"
+            
+            if [ -z "$run_id" ]; then
+              echo "::warning::No run ID found for $repo/$name, skipping monitoring"
+              continue
+            fi
+            
+            echo "::notice::Monitoring workflow run $run_id in $repo"
+            
+            max_wait=3600  # 1 hour max wait
+            interval=30    # Check every 30 seconds
+            elapsed=0
+            
+            while [ $elapsed -lt $max_wait ]; do
+              # Get run status
+              run_data=$(curl -s -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ steps.github_app_token.outputs.token }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$repo/actions/runs/$run_id")
+              
+              status=$(echo "$run_data" | jq -r '.status')
+              conclusion=$(echo "$run_data" | jq -r '.conclusion // empty')
+              
+              if [ "$status" == "completed" ]; then
+                duration=$(echo "$run_data" | jq -r '.run_duration_ms // 0')
+                duration_sec=$((duration / 1000))
+                duration_min=$((duration_sec / 60))
+                duration_display="${duration_min}m $((duration_sec % 60))s"
+                
+                if [ "$conclusion" == "success" ]; then
+                  echo "| [$repo](https://github.com/$repo/actions/runs/$run_id) | $name | :white_check_mark: Success | $duration_display |" >> $GITHUB_STEP_SUMMARY
+                  echo "::notice::Workflow $name in $repo completed successfully"
+                else
+                  echo "| [$repo](https://github.com/$repo/actions/runs/$run_id) | $name | :x: $conclusion | $duration_display |" >> $GITHUB_STEP_SUMMARY
+                  echo "::error::Workflow $name in $repo failed with conclusion: $conclusion"
+                  all_success=false
+                fi
+                break
+              fi
+              
+              sleep $interval
+              elapsed=$((elapsed + interval))
+            done
+            
+            if [ $elapsed -ge $max_wait ]; then
+              echo "| [$repo](https://github.com/$repo/actions/runs/$run_id) | $name | :warning: Timeout | >60m |" >> $GITHUB_STEP_SUMMARY
+              echo "::warning::Workflow $name in $repo did not complete within timeout period"
+              all_success=false
+            fi
+          done
+          
+          # Fail if any workflow failed and fail_on_error is true
+          if [ "$all_success" == "false" ] && [ "${{ inputs.fail_on_error }}" == "true" ]; then
+            echo "::error::One or more triggered workflows failed"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Event:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "**PR:** #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "**Ref:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY

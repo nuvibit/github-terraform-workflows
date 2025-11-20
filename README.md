@@ -63,6 +63,7 @@ Choose the appropriate workflow category for your use case:
 
 ### **📦 Infrastructure Deployment**
 - [Terraform Stack Workflow](#terraform-stack-workflow) - Deploy infrastructure with quality gates and optional execution
+- [Workflow Trigger](#workflow-trigger) - Trigger dependent workflows for stack orchestration
 
 ### **🔧 Module Development**  
 - [Terraform Module Test Workflow](#terraform-module-test-workflow) - Automated testing with Terratest
@@ -306,6 +307,108 @@ jobs:
       TERRAFORM_MODULES_APP_ID: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
       TERRAFORM_MODULES_APP_PRIVATE_KEY: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
       TERRAFORM_REGISTRY_TOKEN: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
+```
+
+>## Workflow Trigger
+* **Purpose**: Trigger dependent workflows in other repositories for stack orchestration
+* **Target**: Infrastructure repositories with dependencies, multi-stack deployments
+* This workflow enables automated triggering of workflows in other repositories within the same organization
+* Perfect for implementing stack dependencies and sequential deployments
+* Supports waiting for completion and failure propagation
+
+### :white_check_mark: Features
+* **Organization-Scoped**: Triggers workflows within the same GitHub organization
+* **Sequential Orchestration**: Chain multiple terraform stacks with dependencies
+* **Optional Monitoring**: Wait for triggered workflows to complete
+* **Failure Propagation**: Optionally fail if dependent workflows fail
+* **Custom Inputs**: Pass configuration to triggered workflows
+* **Flexible Triggers**: Support for PR, push, or both events
+* **GitHub App Authentication**: Secure, scoped authentication
+* **Comprehensive Reporting**: Detailed status summaries in workflow results
+
+### Workflow Steps
+`Single Job - Parallel or Sequential Execution`
+1. **Parse Configuration** - Load workflow trigger definitions
+2. **Trigger Workflows** - Dispatch workflows to target repositories
+3. **Monitor Completion** - (Optional) Wait for triggered workflows to finish
+4. **Summary Report** - Display trigger status and results
+
+### Inputs [Workflow Trigger]
+| Name | Description | Default | Required |
+|------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
+| `trigger_on_event` | Trigger workflows on this event type (pull_request, push, both) | `push` | false |
+| `trigger_workflows` | JSON array of workflows to trigger (see format below) | - | **true** |
+| `wait_for_completion` | Wait for triggered workflows to complete before finishing | `false` | false |
+| `fail_on_error` | Fail this workflow if any triggered workflow fails | `false` | false |
+| `default_branch` | Default branch name for push event filtering | `main` | false |
+
+### Secrets [Workflow Trigger]
+| Name | Description | Required |
+|------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for organization-scoped authentication | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key | **true** |
+
+### Trigger Configuration Format
+```json
+[
+  {
+    "repo": "repository-name",
+    "workflow": "terraform.yml",
+    "ref": "main",
+    "inputs": {
+      "custom_param": "value"
+    }
+  }
+]
+```
+
+**Note**: `repo` is the repository name within your organization. The organization is automatically detected from the calling workflow.
+
+### Usage [Basic Stack Dependency]
+```yaml
+name: Terraform Stack with Dependencies
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  # required if this workflow needs to be triggered by a dependency
+  workflow_dispatch:
+
+jobs:
+  terraform-stack:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
+    with:
+      enable_terraform_execution: true
+      aws_oidc_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+  # Trigger dependent workflows after successful terraform apply
+  trigger-dependencies:
+    needs: terraform-stack
+    if: success()
+    uses: nuvibit/github-terraform-workflows/.github/workflows/github-workflow-trigger.yml@v2
+    with:
+      trigger_on_event: push
+      wait_for_completion: true
+      fail_on_error: true
+      trigger_workflows: |
+        [
+          {
+            "repo": "dependent-stack-repo",
+            "workflow": "terraform-stack.yml",
+            "ref": "main"
+          }
+        ]
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 >## Terraform Module Test Workflow  
