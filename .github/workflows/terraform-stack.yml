@@ -509,6 +509,10 @@ jobs:
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.enable_terraform_execution }}" == "true" && "${{ env.TF_EXECUTION_TYPE }}" != "skip" ]]; then
-            echo '| ${{ env.TF_EXECUTION_RESULT }} | terraform ${{ env.TF_EXECUTION_TYPE }} |' >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
+            if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
+              echo '| :heavy_minus_sign: | terraform execution |' >> $GITHUB_STEP_SUMMARY
+            else
+              echo '| ${{ env.TF_EXECUTION_RESULT }} | terraform ${{ env.TF_EXECUTION_TYPE }} |' >> $GITHUB_STEP_SUMMARY
+            fi
           fi
