@@ -155,16 +155,16 @@ In addition to these Github Actions, custom bash scripts are run to avoid using 
 ### Workflow Steps
 The Terraform Stack workflow consists of the following steps:
 
-`Always Runs`
-1. **Terraform Format** - Code formatting with auto-commit
+`Optional Quality Gates (enabled by default)`
+1. **Terraform Format** - Code formatting with auto-commit (can be disabled with `enable_terraform_fmt: false`)
 2. **Terraform Docs** - Documentation generation (can be disabled with `enable_terraform_docs: false`)
-3. **Terraform Lint** - Static code analysis with TFLint
-4. **Terraform Security** - Security scanning with Trivy
+3. **Terraform Lint** - Static code analysis with TFLint (can be disabled with `enable_terraform_lint: false`)
+4. **Terraform Security** - Security scanning with Trivy (can be disabled with `enable_terraform_security: false`)
 
-`Optional Steps (when enabled)`\
-5. **Terraform Plan** - On pull requests (results in workflow summary)\
-6. **Terraform Apply** - On push to default branch (auto-approve)\
-7. **Workflow Summary** - Centralized status reporting with skip indicators\
+`Optional Execution (disabled by default)`
+5. **Terraform Plan** - On pull requests and manual triggers on non-default branches (results in workflow summary)
+6. **Terraform Apply** - On push to default branch or manual trigger on default branch (auto-approve)
+7. **Workflow Summary** - Centralized status reporting with skip indicators
 
 
 ### Inputs [Terraform Stack Workflow]
@@ -172,7 +172,10 @@ The Terraform Stack workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `use_opentofu` | Use OpenTofu instead of Terraform | `false` | false |
+| `enable_terraform_fmt` | Enable terraform fmt to format code | `true` | false |
 | `enable_terraform_docs` | Enable terraform-docs to generate documentation | `true` | false |
+| `enable_terraform_lint` | Enable tflint to lint terraform code | `true` | false |
+| `enable_terraform_security` | Enable trivy to scan terraform code for security issues | `true` | false |
 | `enable_terraform_execution` | Enable terraform plan on pull requests and apply on push to default branch | `false` | false |
 | `aws_default_region` | Default AWS region to use for terraform execution | `eu-central-1` | false |
 | `aws_oidc_role_arn` | AWS OIDC role ARN to assume for terraform execution | `""` | false |
@@ -220,6 +223,11 @@ jobs:
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
     with:
       enable_terraform_execution: false # (default) Run static checks only
+      # Optional: disable specific quality gates
+      # enable_terraform_fmt: false
+      # enable_terraform_docs: false
+      # enable_terraform_lint: false
+      # enable_terraform_security: false
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
       GH_APP_ID: ${{ secrets.GH_APP_ID }}
@@ -239,6 +247,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:  # Enable manual triggers
 
 jobs:
   terraform-stack:
@@ -252,6 +261,12 @@ jobs:
       GH_APP_ID: ${{ secrets.GH_APP_ID }}
       GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
+
+**Execution Behavior:**
+- **Pull Requests**: Runs `terraform plan` (results in workflow summary)
+- **Push to `main`**: Runs `terraform apply` with auto-approve
+- **Manual Trigger on `main`**: Runs `terraform apply` with auto-approve
+- **Manual Trigger on other branches**: Runs `terraform plan` for testing
 
 ### Usage [OpenTofu Stack Workflow - Complete CI/CD]
 *OpenTofu with full CI/CD pipeline*

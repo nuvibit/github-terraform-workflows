@@ -13,8 +13,23 @@ on:
         default: false
         required: false
         type: boolean
+      enable_terraform_fmt:
+        description: 'Enable terraform fmt to format code'
+        default: true
+        required: false
+        type: boolean
       enable_terraform_docs:
         description: 'Enable terraform-docs to generate documentation'
+        default: true
+        required: false
+        type: boolean
+      enable_terraform_lint:
+        description: 'Enable tflint to lint terraform code'
+        default: true
+        required: false
+        type: boolean
+      enable_terraform_security:
+        description: 'Enable trivy to scan terraform code for security issues'
         default: true
         required: false
         type: boolean
@@ -123,6 +138,7 @@ concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   terraform-fmt:
+    if: ${{ inputs.enable_terraform_fmt }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       fmt_status: ${{ steps.fmt.outcome }}
@@ -190,7 +206,9 @@ jobs:
   terraform-docs:
     needs:
       - terraform-fmt
-    if: ${{ inputs.enable_terraform_docs && needs.terraform-fmt.outputs.diff_exists == 'false' }}
+    # this job should only run if there are no new commits caused by terraform-fmt
+    # if terraform-fmt is disabled, skip the diff check
+    if: ${{ always() && inputs.enable_terraform_docs && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       docs_status: ${{ steps.docs.outcome }}
@@ -232,8 +250,8 @@ jobs:
       - terraform-fmt
       - terraform-docs
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
-    if: ${{ always() && !failure() && !cancelled() && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_lint && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
@@ -285,8 +303,8 @@ jobs:
       - terraform-docs
       - terraform-lint
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
-    if: ${{ always() && !failure() && !cancelled() && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_security && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
@@ -331,9 +349,9 @@ jobs:
       - terraform-lint
       - terraform-security
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
     # also only run this job if terraform execution is enabled
-    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       execution_status: ${{ steps.set_plan_status.outputs.status || steps.set_apply_status.outputs.status }}
