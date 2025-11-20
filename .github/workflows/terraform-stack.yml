@@ -397,7 +397,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: ${{ inputs.aws_oidc_role_arn != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ inputs.aws_oidc_role_arn }}
           role-session-name: GitHubActions-${{ github.run_id }}
