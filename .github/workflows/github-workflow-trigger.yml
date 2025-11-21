@@ -43,8 +43,8 @@ jobs:
     runs-on: ${{ inputs.github_runner }}
     if: |
       (inputs.trigger_on_event == 'pull_request' && github.event_name == 'pull_request') ||
-      (inputs.trigger_on_event == 'push' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.default_branch)) ||
-      (inputs.trigger_on_event == 'both' && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.default_branch))))
+      (inputs.trigger_on_event == 'push' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == format('refs/heads/{0}', inputs.default_branch)) ||
+      (inputs.trigger_on_event == 'both' && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == format('refs/heads/{0}', inputs.default_branch))))
 
     steps:
       - name: Get Github Access Token
