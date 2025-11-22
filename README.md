@@ -464,12 +464,14 @@ jobs:
 | `use_opentofu` | Use OpenTofu instead of Terraform to format the code | `false` | false |
 | `terraform_version` | Terraform version used for formatting and linting | `latest` | false |
 | `terraform_requirements_file` | File where terraform requirements are defined | `main.tf` | false |
+| `terraform_modules_auth` | Authentication method for private modules (none/github-app) | `none` | false |
+| `terraform_modules_github_owner` | GitHub owner/organization name for private modules | `""` | false |
 | `terraform_registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
 | `aws_default_region` | Default AWS region to use for Terratest | `eu-central-1` | false |
 | `aws_oidc_role_arn` | AWS OIDC role ARN to assume for Terratest | `""` | **true** |
 | `terratest_version` | Terratest version | `v0.48.0` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
-| `terratest_examples_path` | Path to terratest examples directory | `examples` | false |
+| `terratest_timeout_in_minutes` | Timeout for terratest runs in minutes | `60` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
 | `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
 | `terratest_config_repo_ref` | Ref or branch of terratest_config_repo | `main` | false |
@@ -486,9 +488,17 @@ jobs:
 ### Secrets [Terraform Module Test Workflow]
 | Name | Description | Required |
 |------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | **true** |
+| `TERRAFORM_MODULES_APP_ID` | GitHub App ID for accessing private Terraform modules | false |
+| `TERRAFORM_MODULES_APP_PRIVATE_KEY` | GitHub App private key for accessing private modules | false |
+| `TERRAFORM_REGISTRY_TOKEN` | Token for accessing private Terraform module registry | false |
 | `SPACELIFT_API_KEY_ENDPOINT` | Spacelift API endpoint for integration testing | false |
 | `SPACELIFT_API_KEY_ID` | Spacelift API key ID for authentication | false |
 | `SPACELIFT_API_KEY_SECRET` | Spacelift API key secret for authentication | false |
+| `GH_PROVIDER_TOKEN` | GitHub Token for GitHub Terraform provider | false |
+| `GH_PROVIDER_APP_ID` | GitHub App ID for GitHub Terraform provider | false |
+| `GH_PROVIDER_PRIVATE_KEY` | GitHub App private key for GitHub Terraform provider | false |
 
 **Note**: This workflow uses **OIDC authentication** with AWS, eliminating the need for long-lived AWS credentials. Configure your AWS OIDC provider and specify the role ARN in `aws_oidc_role_arn`.
 
@@ -503,7 +513,7 @@ on:
 
 jobs:
   terraform-module-test:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       # Required: AWS OIDC role for secure authentication
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
@@ -515,11 +525,14 @@ jobs:
       # Optional: Customize testing configuration
       terratest_version: "v0.48.0"
       terratest_max_parallel: 2
+      terratest_timeout_in_minutes: 60
       
       # Optional: Use OpenTofu instead of Terraform
       # use_opentofu: true
       # terraform_version: "1.8.0"
     secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
       # Optional: For Spacelift integration
       SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
       SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
@@ -537,13 +550,16 @@ on:
 
 jobs:
   opentofu-module-test:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       use_opentofu: true
       terraform_version: "1.8.0"
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 >## Terraform Module Release Workflow
@@ -571,11 +587,16 @@ jobs:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
-| `toggle_branch_protection` | Temporary disable branch protection to allow release action to push updates | `true` | false |
 | `semantic_version` | Specify version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
 | `concurrency_group` | Name of concurrency group to manage concurrent github action runs | Auto-generated | false |
+
+### Secrets [Terraform Module Release Workflow]
+| Name | Description | Required |
+|------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | **true** |
 
 ### Usage [Terraform Module Release Workflow]
 ```yaml
@@ -588,7 +609,10 @@ on:
 
 jobs:
   terraform-module-release:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v2
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [Complete Module Workflow - Test + Release]
@@ -606,12 +630,14 @@ on:
 jobs:
   terraform-module-test:
     if: ${{ github.event_name == 'pull_request' }}
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
       # spacelift credentials used to test spacelift administration
       SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
       SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
@@ -619,7 +645,10 @@ jobs:
 
   terraform-module-release:
     if: ${{ github.event_name == 'push' }}
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v2
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 <!-- AUTHORS -->
