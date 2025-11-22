@@ -8,11 +8,6 @@ on:
         default: 'ubuntu-latest'
         required: false
         type: string
-      use_opentofu:
-        description: 'Use OpenTofu instead of Terraform'
-        default: false
-        required: false
-        type: boolean
       enable_terraform_fmt:
         description: 'Enable terraform fmt to format code'
         default: true
@@ -23,48 +18,8 @@ on:
         default: true
         required: false
         type: boolean
-      enable_terraform_lint:
-        description: 'Enable tflint to lint terraform code'
-        default: true
-        required: false
-        type: boolean
-      enable_terraform_security:
-        description: 'Enable trivy to scan terraform code for security issues'
-        default: true
-        required: false
-        type: boolean
       enable_terraform_execution:
         description: 'Enable terraform plan on pull requests and apply on push to default branch'
-        default: false
-        required: false
-        type: boolean
-      enable_opa_policy_check:
-        description: 'Enable OPA policy validation on Terraform plan (requires "enable_terraform_execution" to be true)'
-        default: false
-        required: false
-        type: boolean
-      opa_version:
-        description: 'OPA version to use in github action'
-        default: 'latest'
-        required: false
-        type: string
-      opa_policy_repo:
-        description: 'Repository where OPA policies are stored'
-        default: 'nuvibit/terraform-opa-policies'
-        required: false
-        type: string
-      opa_policy_repo_path:
-        description: 'Path to OPA policies in opa_policy_repo'
-        default: 'policies'
-        required: false
-        type: string
-      opa_policy_repo_ref:
-        description: 'Ref or branch of opa_policy_repo'
-        default: 'main'
-        required: false
-        type: string
-      opa_fail_on_warn:
-        description: 'Fail workflow on OPA warnings (not just denials)'
         default: false
         required: false
         type: boolean
@@ -78,6 +33,11 @@ on:
         default: ''
         required: false
         type: string
+      use_opentofu:
+        description: 'Use OpenTofu instead of Terraform'
+        default: false
+        required: false
+        type: boolean
       terraform_version:
         description: 'Terraform version used in github action'
         default: 'latest'
@@ -103,6 +63,41 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
+      enable_opa_policy_check:
+        description: 'Enable OPA policy validation on Terraform plan (requires "enable_terraform_execution" to be true)'
+        default: false
+        required: false
+        type: boolean
+      opa_version:
+        description: 'OPA version to use in github action'
+        default: 'latest'
+        required: false
+        type: string
+      opa_policy_repo:
+        description: 'Repository where OPA policies are stored'
+        default: 'nuvibit/terraform-opa-policies'
+        required: false
+        type: string
+      opa_policy_repo_paths:
+        description: 'JSON array of policy paths/patterns to apply (e.g., ["aws/*.rego", "global/policy.rego"])'
+        default: '[]'
+        required: false
+        type: string
+      opa_policy_repo_ref:
+        description: 'Ref or branch of opa_policy_repo'
+        default: 'main'
+        required: false
+        type: string
+      opa_fail_on_warn:
+        description: 'Fail workflow on OPA warnings (not just denials)'
+        default: false
+        required: false
+        type: boolean
+      enable_terraform_lint:
+        description: 'Enable tflint to lint terraform code'
+        default: true
+        required: false
+        type: boolean
       tflint_repo:
         description: 'Public repo where tflint config is stored'
         default: 'nuvibit/github-tflint-config'
@@ -123,6 +118,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      enable_terraform_security:
+        description: 'Enable trivy to scan terraform code for security issues'
+        default: true
+        required: false
+        type: boolean
       trivy_version:
         description: 'Trivy version to use in github action'
         default: 'latest'
@@ -534,7 +534,7 @@ jobs:
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
       - name: Checkout OPA Policies
-        if: ${{ inputs.enable_opa_policy_check && inputs.opa_policy_repo_path != '' && steps.set_execution_type.outputs.type != 'skip' }}
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         uses: actions/checkout@v5
         with:
           repository: ${{ inputs.opa_policy_repo }}
@@ -543,16 +543,65 @@ jobs:
           token: ${{ steps.opa_github_app_token.outputs.token }}
 
       - name: Copy OPA Policies to Working Directory
-        if: ${{ inputs.enable_opa_policy_check && inputs.opa_policy_repo_path != '' && steps.set_execution_type.outputs.type != 'skip' }}
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         run: |
-          # Copy policies from checkout to working location
-          if [[ -d ".opa-policies-repo/${{ inputs.opa_policy_repo_path }}" ]]; then
-            cp -r .opa-policies-repo/${{ inputs.opa_policy_repo_path }} .opa-policies
-            echo "✅ OPA policies copied from ${{ inputs.opa_policy_repo }}/${{ inputs.opa_policy_repo_path }}"
-          else
-            echo "::error::Policy path not found: ${{ inputs.opa_policy_repo_path }}"
+          # Create target directory
+          mkdir -p .opa-policies
+          
+          # Parse JSON array
+          PATHS=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq -r '.[]' 2>/dev/null)
+          
+          # Check if array is empty
+          ARRAY_LENGTH=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq 'length' 2>/dev/null)
+          
+          if [[ "$ARRAY_LENGTH" == "0" ]]; then
+            echo "::warning::opa_policy_repo_paths is empty. No policies will be copied."
+            echo "::warning::Set opa_policy_repo_paths to specify which policies to apply."
+            exit 0
+          fi
+          
+          if [[ -z "$PATHS" ]]; then
+            echo "::error::Failed to parse opa_policy_repo_paths as JSON array"
             exit 1
           fi
+          
+          echo "📋 Processing opa_policy_repo_paths..."
+          COPIED_COUNT=0
+          
+          # Process each path/pattern
+          while IFS= read -r PATTERN; do
+            [[ -z "$PATTERN" ]] && continue
+            
+            echo "  Processing pattern: $PATTERN"
+            
+            # Use bash globbing for pattern matching
+            shopt -s globstar nullglob
+            
+            # Expand the pattern
+            for file in .opa-policies-repo/$PATTERN; do
+              # Skip if not a file
+              [[ ! -f "$file" ]] && continue
+              
+              # Get relative path from repo root
+              REL_PATH="${file#.opa-policies-repo/}"
+              TARGET_DIR=".opa-policies/$(dirname "$REL_PATH")"
+              
+              # Create target directory structure
+              mkdir -p "$TARGET_DIR"
+              
+              # Copy file
+              cp "$file" "$TARGET_DIR/"
+              echo "    ✓ Copied: $REL_PATH"
+              ((COPIED_COUNT++))
+            done
+          done <<< "$PATHS"
+          
+          if [[ $COPIED_COUNT -eq 0 ]]; then
+            echo "::error::No policy files matched the specified patterns in opa_policy_repo_paths"
+            exit 1
+          fi
+          
+          echo "✅ Copied $COPIED_COUNT policy file(s)"
         working-directory: ${{ github.workspace }}
 
       - name: Setup OPA
