@@ -106,26 +106,30 @@ jobs:
             
             # Check if trigger was successful (empty response means success)
             if [ -z "$response" ]; then
-              echo "| [$owner/$repo](https://github.com/$owner/$repo) | $workflow | :white_check_mark: Triggered | - |" >> $GITHUB_STEP_SUMMARY
+              # Wait a moment for the run to be created
+              sleep 5
+              
+              # Get the latest run ID for this workflow
+              run_id=$(curl -s -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ steps.github_app_token.outputs.token }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$owner/$repo/actions/workflows/$workflow/runs?per_page=1" | \
+                jq -r '.workflow_runs[0].id // empty')
+              
+              if [ -n "$run_id" ]; then
+                echo "| [$owner/$repo](https://github.com/$owner/$repo) | $workflow | :white_check_mark: Triggered | [#$run_id](https://github.com/$owner/$repo/actions/runs/$run_id) |" >> $GITHUB_STEP_SUMMARY
+                echo "::notice::Workflow run ID: $run_id"
+              else
+                echo "| [$owner/$repo](https://github.com/$owner/$repo) | $workflow | :white_check_mark: Triggered | - |" >> $GITHUB_STEP_SUMMARY
+              fi
               
               # Store for later if we need to wait
               if [ "${{ inputs.wait_for_completion }}" == "true" ]; then
                 triggered_repos+=("$owner/$repo")
                 triggered_names+=("$workflow")
                 
-                # Wait a moment for the run to be created
-                sleep 5
-                
-                # Get the latest run ID for this workflow
-                run_id=$(curl -s -H "Accept: application/vnd.github+json" \
-                  -H "Authorization: Bearer ${{ steps.github_app_token.outputs.token }}" \
-                  -H "X-GitHub-Api-Version: 2022-11-28" \
-                  "https://api.github.com/repos/$owner/$repo/actions/workflows/$workflow/runs?per_page=1" | \
-                  jq -r '.workflow_runs[0].id // empty')
-                
                 if [ -n "$run_id" ]; then
                   triggered_run_ids+=("$run_id")
-                  echo "::notice::Workflow run ID: $run_id"
                 fi
               fi
             else
