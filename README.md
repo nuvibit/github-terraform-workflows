@@ -63,6 +63,7 @@ Choose the appropriate workflow category for your use case:
 
 ### **📦 Infrastructure Deployment**
 - [Terraform Stack Workflow](#terraform-stack-workflow) - Deploy infrastructure with quality gates and optional execution
+- [Workflow Trigger](#workflow-trigger) - Trigger dependent workflows for stack orchestration
 
 ### **🔧 Module Development**  
 - [Terraform Module Test Workflow](#terraform-module-test-workflow) - Automated testing with Terratest
@@ -154,16 +155,16 @@ In addition to these Github Actions, custom bash scripts are run to avoid using 
 ### Workflow Steps
 The Terraform Stack workflow consists of the following steps:
 
-`Always Runs`
-1. **Terraform Format** - Code formatting with auto-commit
+`Optional Quality Gates (enabled by default)`
+1. **Terraform Format** - Code formatting with auto-commit (can be disabled with `enable_terraform_fmt: false`)
 2. **Terraform Docs** - Documentation generation (can be disabled with `enable_terraform_docs: false`)
-3. **Terraform Lint** - Static code analysis with TFLint
-4. **Terraform Security** - Security scanning with Trivy
+3. **Terraform Lint** - Static code analysis with TFLint (can be disabled with `enable_terraform_lint: false`)
+4. **Terraform Security** - Security scanning with Trivy (can be disabled with `enable_terraform_security: false`)
 
-`Optional Steps (when enabled)`\
-5. **Terraform Plan** - On pull requests (results in workflow summary)\
-6. **Terraform Apply** - On push to default branch (auto-approve)\
-7. **Workflow Summary** - Centralized status reporting with skip indicators\
+`Optional Execution (disabled by default)`
+5. **Terraform Plan** - On pull requests and manual triggers on non-default branches (results in workflow summary)
+6. **Terraform Apply** - On push to default branch or manual trigger on default branch (auto-approve)
+7. **Workflow Summary** - Centralized status reporting with skip indicators
 
 
 ### Inputs [Terraform Stack Workflow]
@@ -171,7 +172,10 @@ The Terraform Stack workflow consists of the following steps:
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
 | `use_opentofu` | Use OpenTofu instead of Terraform | `false` | false |
+| `enable_terraform_fmt` | Enable terraform fmt to format code | `true` | false |
 | `enable_terraform_docs` | Enable terraform-docs to generate documentation | `true` | false |
+| `enable_terraform_lint` | Enable tflint to lint terraform code | `true` | false |
+| `enable_terraform_security` | Enable trivy to scan terraform code for security issues | `true` | false |
 | `enable_terraform_execution` | Enable terraform plan on pull requests and apply on push to default branch | `false` | false |
 | `aws_default_region` | Default AWS region to use for terraform execution | `eu-central-1` | false |
 | `aws_oidc_role_arn` | AWS OIDC role ARN to assume for terraform execution | `""` | false |
@@ -219,6 +223,11 @@ jobs:
     uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
     with:
       enable_terraform_execution: false # (default) Run static checks only
+      # Optional: disable specific quality gates
+      # enable_terraform_fmt: false
+      # enable_terraform_docs: false
+      # enable_terraform_lint: false
+      # enable_terraform_security: false
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
       GH_APP_ID: ${{ secrets.GH_APP_ID }}
@@ -238,6 +247,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:  # Enable manual triggers
 
 jobs:
   terraform-stack:
@@ -251,6 +261,12 @@ jobs:
       GH_APP_ID: ${{ secrets.GH_APP_ID }}
       GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
+
+**Execution Behavior:**
+- **Pull Requests**: Runs `terraform plan` (results in workflow summary)
+- **Push to `main`**: Runs `terraform apply` with auto-approve
+- **Manual Trigger on `main`**: Runs `terraform apply` with auto-approve
+- **Manual Trigger on other branches**: Runs `terraform plan` for testing
 
 ### Usage [OpenTofu Stack Workflow - Complete CI/CD]
 *OpenTofu with full CI/CD pipeline*
@@ -308,6 +324,108 @@ jobs:
       TERRAFORM_REGISTRY_TOKEN: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 ```
 
+>## Workflow Trigger
+* **Purpose**: Trigger dependent workflows in other repositories for stack orchestration
+* **Target**: Infrastructure repositories with dependencies, multi-stack deployments
+* This workflow enables automated triggering of workflows in other repositories within the same organization
+* Perfect for implementing stack dependencies and sequential deployments
+* Supports waiting for completion and failure propagation
+
+### :white_check_mark: Features
+* **Organization-Scoped**: Triggers workflows within the same GitHub organization
+* **Sequential Orchestration**: Chain multiple terraform stacks with dependencies
+* **Optional Monitoring**: Wait for triggered workflows to complete
+* **Failure Propagation**: Optionally fail if dependent workflows fail
+* **Custom Inputs**: Pass configuration to triggered workflows
+* **Flexible Triggers**: Support for PR, push, or both events
+* **GitHub App Authentication**: Secure, scoped authentication
+* **Comprehensive Reporting**: Detailed status summaries in workflow results
+
+### Workflow Steps
+`Single Job - Parallel or Sequential Execution`
+1. **Parse Configuration** - Load workflow trigger definitions
+2. **Trigger Workflows** - Dispatch workflows to target repositories
+3. **Monitor Completion** - (Optional) Wait for triggered workflows to finish
+4. **Summary Report** - Display trigger status and results
+
+### Inputs [Workflow Trigger]
+| Name | Description | Default | Required |
+|------|-------------|---------|----------|
+| `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
+| `trigger_on_event` | Trigger workflows on this event type (pull_request, push, both) | `push` | false |
+| `trigger_workflows` | JSON array of workflows to trigger (see format below) | - | **true** |
+| `wait_for_completion` | Wait for triggered workflows to complete before finishing | `false` | false |
+| `fail_on_error` | Fail this workflow if any triggered workflow fails | `false` | false |
+| `default_branch` | Default branch name for push event filtering | `main` | false |
+
+### Secrets [Workflow Trigger]
+| Name | Description | Required |
+|------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for organization-scoped authentication | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key | **true** |
+
+### Trigger Configuration Format
+```json
+[
+  {
+    "repo": "repository-name",
+    "workflow": "terraform.yml",
+    "ref": "main",
+    "inputs": {
+      "custom_param": "value"
+    }
+  }
+]
+```
+
+**Note**: `repo` is the repository name within your organization. The organization is automatically detected from the calling workflow.
+
+### Usage [Basic Stack Dependency]
+```yaml
+name: Terraform Stack with Dependencies
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  # required if this workflow needs to be triggered by a dependency
+  workflow_dispatch:
+
+jobs:
+  terraform-stack:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
+    with:
+      enable_terraform_execution: true
+      aws_oidc_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+  # Trigger dependent workflows after successful terraform apply
+  trigger-dependencies:
+    needs: terraform-stack
+    if: success()
+    uses: nuvibit/github-terraform-workflows/.github/workflows/github-workflow-trigger.yml@v2
+    with:
+      trigger_on_event: push
+      wait_for_completion: true
+      fail_on_error: true
+      trigger_workflows: |
+        [
+          {
+            "repo": "dependent-stack-repo",
+            "workflow": "terraform-stack.yml",
+            "ref": "main"
+          }
+        ]
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
 >## Terraform Module Test Workflow  
 * **Purpose**: Automated testing and validation of reusable Terraform modules
 * **Target**: Terraform module repositories, library development, module marketplaces
@@ -346,12 +464,14 @@ jobs:
 | `use_opentofu` | Use OpenTofu instead of Terraform to format the code | `false` | false |
 | `terraform_version` | Terraform version used for formatting and linting | `latest` | false |
 | `terraform_requirements_file` | File where terraform requirements are defined | `main.tf` | false |
+| `terraform_modules_auth` | Authentication method for private modules (none/github-app) | `none` | false |
+| `terraform_modules_github_owner` | GitHub owner/organization name for private modules | `""` | false |
 | `terraform_registry_hostname` | Hostname for terraform registry used to download providers | `registry.terraform.io` | false |
 | `aws_default_region` | Default AWS region to use for Terratest | `eu-central-1` | false |
 | `aws_oidc_role_arn` | AWS OIDC role ARN to assume for Terratest | `""` | **true** |
 | `terratest_version` | Terratest version | `v0.48.0` | false |
 | `terratest_path` | Path to terratest directory | `test` | false |
-| `terratest_examples_path` | Path to terratest examples directory | `examples` | false |
+| `terratest_timeout_in_minutes` | Timeout for terratest runs in minutes | `60` | false |
 | `terratest_max_parallel` | Maximum number of terratest runs that should run simultaneously | `1` | false |
 | `terratest_config_repo` | Public repo where terratest matrix json is stored | `nuvibit/github-terratest-config` | false |
 | `terratest_config_repo_ref` | Ref or branch of terratest_config_repo | `main` | false |
@@ -368,9 +488,17 @@ jobs:
 ### Secrets [Terraform Module Test Workflow]
 | Name | Description | Required |
 |------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | **true** |
+| `TERRAFORM_MODULES_APP_ID` | GitHub App ID for accessing private Terraform modules | false |
+| `TERRAFORM_MODULES_APP_PRIVATE_KEY` | GitHub App private key for accessing private modules | false |
+| `TERRAFORM_REGISTRY_TOKEN` | Token for accessing private Terraform module registry | false |
 | `SPACELIFT_API_KEY_ENDPOINT` | Spacelift API endpoint for integration testing | false |
 | `SPACELIFT_API_KEY_ID` | Spacelift API key ID for authentication | false |
 | `SPACELIFT_API_KEY_SECRET` | Spacelift API key secret for authentication | false |
+| `GH_PROVIDER_TOKEN` | GitHub Token for GitHub Terraform provider | false |
+| `GH_PROVIDER_APP_ID` | GitHub App ID for GitHub Terraform provider | false |
+| `GH_PROVIDER_PRIVATE_KEY` | GitHub App private key for GitHub Terraform provider | false |
 
 **Note**: This workflow uses **OIDC authentication** with AWS, eliminating the need for long-lived AWS credentials. Configure your AWS OIDC provider and specify the role ARN in `aws_oidc_role_arn`.
 
@@ -385,7 +513,7 @@ on:
 
 jobs:
   terraform-module-test:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       # Required: AWS OIDC role for secure authentication
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
@@ -397,11 +525,14 @@ jobs:
       # Optional: Customize testing configuration
       terratest_version: "v0.48.0"
       terratest_max_parallel: 2
+      terratest_timeout_in_minutes: 60
       
       # Optional: Use OpenTofu instead of Terraform
       # use_opentofu: true
       # terraform_version: "1.8.0"
     secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
       # Optional: For Spacelift integration
       SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
       SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
@@ -419,13 +550,16 @@ on:
 
 jobs:
   opentofu-module-test:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       use_opentofu: true
       terraform_version: "1.8.0"
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 >## Terraform Module Release Workflow
@@ -453,11 +587,16 @@ jobs:
 | Name | Description | Default | Required |
 |------|-------------|---------|----------|
 | `github_runner` | Name of GitHub-hosted runner or self-hosted runner | `ubuntu-latest` | false |
-| `toggle_branch_protection` | Temporary disable branch protection to allow release action to push updates | `true` | false |
 | `semantic_version` | Specify version range for semantic-release | `18.0.0` | false |
 | `semantic_release_config` | Shareable config to create release of Terraform Modules | `@nuvibit/github-terraform-semantic-release-config` | false |
 | `release_branch` | Name of branch on which Terraform Module release should happen | `main` | false |
 | `concurrency_group` | Name of concurrency group to manage concurrent github action runs | Auto-generated | false |
+
+### Secrets [Terraform Module Release Workflow]
+| Name | Description | Required |
+|------|-------------|----------|
+| `GH_APP_ID` | GitHub App ID for enhanced authentication (replaces GITHUB_TOKEN) | **true** |
+| `GH_APP_PRIVATE_KEY` | GitHub App private key for enhanced authentication | **true** |
 
 ### Usage [Terraform Module Release Workflow]
 ```yaml
@@ -470,7 +609,10 @@ on:
 
 jobs:
   terraform-module-release:
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v2
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 ### Usage [Complete Module Workflow - Test + Release]
@@ -488,12 +630,14 @@ on:
 jobs:
   terraform-module-test:
     if: ${{ github.event_name == 'pull_request' }}
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-test.yml@v2
     with:
       aws_oidc_role_arn: ${{ vars.AWS_OIDC_ROLE_ARN }}
       tflint_repo: "nuvibit/github-tflint-config"
       tflint_repo_config_path: "aws/.tflint.hcl"
     secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
       # spacelift credentials used to test spacelift administration
       SPACELIFT_API_KEY_ENDPOINT: ${{ secrets.SPACELIFT_API_KEY_ENDPOINT }}
       SPACELIFT_API_KEY_ID: ${{ secrets.SPACELIFT_API_KEY_ID }}
@@ -501,7 +645,10 @@ jobs:
 
   terraform-module-release:
     if: ${{ github.event_name == 'push' }}
-    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v1
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-module-release.yml@v2
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
 ```
 
 <!-- AUTHORS -->

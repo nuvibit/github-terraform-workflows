@@ -13,8 +13,23 @@ on:
         default: false
         required: false
         type: boolean
+      enable_terraform_fmt:
+        description: 'Enable terraform fmt to format code'
+        default: true
+        required: false
+        type: boolean
       enable_terraform_docs:
         description: 'Enable terraform-docs to generate documentation'
+        default: true
+        required: false
+        type: boolean
+      enable_terraform_lint:
+        description: 'Enable tflint to lint terraform code'
+        default: true
+        required: false
+        type: boolean
+      enable_terraform_security:
+        description: 'Enable trivy to scan terraform code for security issues'
         default: true
         required: false
         type: boolean
@@ -123,6 +138,7 @@ concurrency: ${{ inputs.concurrency_group }}
 
 jobs:
   terraform-fmt:
+    if: ${{ inputs.enable_terraform_fmt }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       fmt_status: ${{ steps.fmt.outcome }}
@@ -190,7 +206,9 @@ jobs:
   terraform-docs:
     needs:
       - terraform-fmt
-    if: ${{ inputs.enable_terraform_docs && needs.terraform-fmt.outputs.diff_exists == 'false' }}
+    # this job should only run if there are no new commits caused by terraform-fmt
+    # if terraform-fmt is disabled, skip the diff check
+    if: ${{ always() && inputs.enable_terraform_docs && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       docs_status: ${{ steps.docs.outcome }}
@@ -232,8 +250,8 @@ jobs:
       - terraform-fmt
       - terraform-docs
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
-    if: ${{ always() && !failure() && !cancelled() && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_lint && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       lint_status: ${{ steps.lint.outcome }}
@@ -285,8 +303,8 @@ jobs:
       - terraform-docs
       - terraform-lint
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
-    if: ${{ always() && !failure() && !cancelled() && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_security && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
       security_status: ${{ steps.security.outcome }}
@@ -331,12 +349,12 @@ jobs:
       - terraform-lint
       - terraform-security
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
-    # if terraform-docs is disabled, it should only run if terraform-fmt caused no changes
+    # if terraform-fmt or terraform-docs are disabled, skip their diff checks
     # also only run this job if terraform execution is enabled
-    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && needs.terraform-fmt.outputs.diff_exists == 'false' && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
     outputs:
-      execution_status: ${{ steps.plan.outcome || steps.apply.outcome }}
+      execution_status: ${{ steps.set_plan_status.outputs.status || steps.set_apply_status.outputs.status }}
       execution_type: ${{ steps.set_execution_type.outputs.type }}
 
     steps:
@@ -387,12 +405,15 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "type=plan" >> $GITHUB_OUTPUT
             echo "::notice::Will run Terraform Plan for pull request"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/${{ inputs.default_branch }}" ]]; then
+            echo "type=plan" >> $GITHUB_OUTPUT
+            echo "::notice::Will run Terraform Plan for manual trigger on non-default branch"
+          elif [[ ("${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch") && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
             echo "type=apply" >> $GITHUB_OUTPUT
-            echo "::notice::Will run Terraform Apply for push to ${{ inputs.default_branch }}"
+            echo "::notice::Will run Terraform Apply for ${{ github.event_name }} on ${{ inputs.default_branch }}"
           else
             echo "type=skip" >> $GITHUB_OUTPUT
-            echo "::notice::Skipping Terraform execution - not a PR or push to ${{ inputs.default_branch }}"
+            echo "::notice::Skipping Terraform execution - not a PR or push/manual trigger"
           fi
 
       - name: Configure AWS credentials
@@ -420,10 +441,13 @@ jobs:
         id: plan
         run: |
           if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu plan -no-color -input=false
+            tofu plan -no-color -input=false 2>&1 | tee plan_output.txt
           else
-            terraform plan -no-color -input=false
+            terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
           fi
+          echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat plan_output.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
         working-directory: ${{ inputs.terraform_working_directory }}
         continue-on-error: true
 
@@ -439,7 +463,7 @@ jobs:
           echo '<details><summary>Show Plan Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.plan.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          cat ${{ inputs.terraform_working_directory }}/plan_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
@@ -448,14 +472,19 @@ jobs:
         if: ${{ steps.set_execution_type.outputs.type == 'plan' && steps.plan.outcome == 'failure' }}
         run: exit 1
 
+      - name: Set Execution Status
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        id: set_plan_status
+        run: echo "status=${{ steps.plan.outcome }}" >> $GITHUB_OUTPUT
+
       - name: Terraform Apply
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         id: apply
         run: |
           if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu apply -auto-approve -no-color -input=false
+            tofu apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
           else
-            terraform apply -auto-approve -no-color -input=false
+            terraform apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
           fi
         working-directory: ${{ inputs.terraform_working_directory }}
 
@@ -472,10 +501,15 @@ jobs:
           echo '<details><summary>Show Apply Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.apply.outputs.stdout }}' >> $GITHUB_STEP_SUMMARY
+          cat ${{ inputs.terraform_working_directory }}/apply_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
+
+      - name: Set Execution Status
+        if: ${{ always() && steps.set_execution_type.outputs.type == 'apply' }}
+        id: set_apply_status
+        run: echo "status=${{ steps.apply.outcome }}" >> $GITHUB_OUTPUT
 
   workflow-summary:
     needs:
@@ -506,6 +540,10 @@ jobs:
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.enable_terraform_execution }}" == "true" && "${{ env.TF_EXECUTION_TYPE }}" != "skip" ]]; then
-            echo '| ${{ env.TF_EXECUTION_RESULT }} | terraform ${{ env.TF_EXECUTION_TYPE }} |' >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
+            if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
+              echo '| :heavy_minus_sign: | terraform execution |' >> $GITHUB_STEP_SUMMARY
+            else
+              echo '| ${{ env.TF_EXECUTION_RESULT }} | terraform ${{ env.TF_EXECUTION_TYPE }} |' >> $GITHUB_STEP_SUMMARY
+            fi
           fi
