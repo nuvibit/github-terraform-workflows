@@ -525,6 +525,16 @@ jobs:
         id: set_plan_status
         run: echo "status=${{ steps.plan.outcome }}" >> $GITHUB_OUTPUT
 
+      - name: Extract OPA Policy Repo Owner
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        id: opa_repo_info
+        run: |
+          REPO="${{ inputs.opa_policy_repo }}"
+          OWNER="${REPO%%/*}"
+          REPO_NAME="${REPO#*/}"
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+
       - name: Get Github Access Token for OPA Policies
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         id: opa_github_app_token
@@ -532,9 +542,9 @@ jobs:
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ inputs.opa_policy_repo.split('/')[0] }}
+          owner: ${{ steps.opa_repo_info.outputs.owner }}
           repositories: |
-            ${{ inputs.opa_policy_repo }}
+            ${{ steps.opa_repo_info.outputs.repo_name }}
 
       - name: Checkout OPA Policies
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
