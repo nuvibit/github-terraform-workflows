@@ -502,7 +502,7 @@ jobs:
       - name: Terraform Plan Summary
         if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
         run: |
-          echo '### TERRAFORM PLAN SUMMARY :memo:' >> $GITHUB_STEP_SUMMARY
+          echo '## :memo: TERRAFORM PLAN SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '**Status:** `${{ steps.plan.outcome }}`' >> $GITHUB_STEP_SUMMARY
           echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
@@ -741,7 +741,7 @@ jobs:
       - name: Terraform Apply Summary
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         run: |
-          echo '### TERRAFORM APPLY SUMMARY :rocket:' >> $GITHUB_STEP_SUMMARY
+          echo '## :rocket: TERRAFORM APPLY SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '**Status:** `${{ steps.apply.outcome }}`' >> $GITHUB_STEP_SUMMARY
           echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
