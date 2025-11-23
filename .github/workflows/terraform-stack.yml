@@ -561,17 +561,33 @@ jobs:
           # Create target directory
           mkdir -p .opa-policies
           
-          # Parse JSON array
-          PATHS=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq -r '.[]' 2>/dev/null)
+          # Validate JSON format first
+          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq empty 2>/dev/null; then
+            echo "::error::opa_policy_repo_paths is not valid JSON"
+            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
+            exit 1
+          fi
+          
+          # Check if it's an array
+          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq -e 'if type == "array" then true else false end' >/dev/null 2>&1; then
+            echo "::error::opa_policy_repo_paths must be a JSON array"
+            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
+            exit 1
+          fi
           
           # Check if array is empty
-          ARRAY_LENGTH=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq 'length' 2>/dev/null)
+          ARRAY_LENGTH=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq 'length')
           
           if [[ "$ARRAY_LENGTH" == "0" ]]; then
             echo "::warning::opa_policy_repo_paths is empty. No policies will be copied."
             echo "::warning::Set opa_policy_repo_paths to specify which policies to apply."
             exit 0
           fi
+          
+          # Parse JSON array
+          PATHS=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq -r '.[]')
           
           if [[ -z "$PATHS" ]]; then
             echo "::error::Failed to parse opa_policy_repo_paths as JSON array"
