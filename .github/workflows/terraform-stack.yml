@@ -118,7 +118,7 @@ on:
         default: 'latest'
         required: false
         type: string
-      enable_terraform_security:
+      enable_trivy_security:
         description: 'Enable trivy to scan terraform code for security issues'
         default: true
         required: false
@@ -327,7 +327,7 @@ jobs:
           flags: ""
           tflint_init: true
 
-  terraform-security:
+  trivy-security:
     needs:
       - terraform-fmt
       - terraform-docs
@@ -377,7 +377,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
-      - terraform-security
+      - trivy-security
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
     # if terraform-fmt or terraform-docs are disabled, skip their diff checks
     # also only run this job if terraform execution is enabled
@@ -766,7 +766,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
-      - terraform-security
+      - trivy-security
       - terraform-execution
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
@@ -778,7 +778,7 @@ jobs:
           TF_FMT_RESULT: ${{ needs.terraform-fmt.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-fmt.outputs.fmt_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_DOCS_RESULT: ${{ needs.terraform-docs.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-docs.outputs.docs_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_LINT_RESULT: ${{ needs.terraform-lint.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-lint.outputs.lint_status == 'success' && ':white_check_mark:' || ':x:') }}
-          TF_SECURITY_RESULT: ${{ needs.terraform-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_SECURITY_RESULT: ${{ needs.trivy-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.trivy-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_RESULT: ${{ needs.terraform-execution.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_TYPE: ${{ needs.terraform-execution.outputs.execution_type }}
           OPA_RESULT: ${{ needs.terraform-execution.outputs.opa_status == '' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.opa_status == 'success' && ':white_check_mark:' || ':x:') }}
