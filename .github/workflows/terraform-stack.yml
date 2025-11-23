@@ -782,8 +782,6 @@ jobs:
           TF_EXECUTION_RESULT: ${{ needs.terraform-execution.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_TYPE: ${{ needs.terraform-execution.outputs.execution_type }}
           OPA_RESULT: ${{ needs.terraform-execution.outputs.opa_status == '' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.opa_status == 'success' && ':white_check_mark:' || ':x:') }}
-          OPA_DENY_COUNT: ${{ needs.terraform-execution.outputs.opa_deny_count }}
-          OPA_WARN_COUNT: ${{ needs.terraform-execution.outputs.opa_warn_count }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
@@ -792,11 +790,8 @@ jobs:
           echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | trivy security |' >> $GITHUB_STEP_SUMMARY
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
-            if [[ "${{ env.OPA_DENY_COUNT }}" != "" ]]; then
-              echo '| ${{ env.OPA_RESULT }} | opa policy check (denials: ${{ env.OPA_DENY_COUNT }}, warnings: ${{ env.OPA_WARN_COUNT }}) |' >> $GITHUB_STEP_SUMMARY
-            else
               echo '| ${{ env.OPA_RESULT }} | opa policy check |' >> $GITHUB_STEP_SUMMARY
             fi
           fi
