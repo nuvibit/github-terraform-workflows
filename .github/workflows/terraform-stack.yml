@@ -597,14 +597,14 @@ jobs:
           echo "📋 Processing opa_policy_repo_paths..."
           COPIED_COUNT=0
           
+          # Enable extended globbing
+          shopt -s globstar nullglob
+          
           # Process each path/pattern
           while IFS= read -r PATTERN; do
             [[ -z "$PATTERN" ]] && continue
             
             echo "  Processing pattern: $PATTERN"
-            
-            # Use bash globbing for pattern matching
-            shopt -s globstar nullglob
             
             # Expand the pattern
             for file in .opa-policies-repo/$PATTERN; do
@@ -621,7 +621,7 @@ jobs:
               # Copy file
               cp "$file" "$TARGET_DIR/"
               echo "    ✓ Copied: $REL_PATH"
-              ((COPIED_COUNT++))
+              COPIED_COUNT=$((COPIED_COUNT + 1))
             done
           done <<< "$PATHS"
           
