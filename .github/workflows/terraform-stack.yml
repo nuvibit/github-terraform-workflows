@@ -674,6 +674,22 @@ jobs:
           echo "## 🛡️ OPA Policy Check Results" > opa_summary.md
           echo "" >> opa_summary.md
           
+          # List checked policies
+          echo "### 📋 Policies Checked" >> opa_summary.md
+          echo "" >> opa_summary.md
+          echo "| Policy File | Status |" >> opa_summary.md
+          echo "|---|---|" >> opa_summary.md
+          
+          # Find all policy files that were checked
+          if [[ -d ".opa-policies" ]]; then
+            find .opa-policies -type f -name "*.rego" | sort | while read -r policy_file; do
+              policy_name="${policy_file#.opa-policies/}"
+              echo "| \`${policy_name}\` | ✓ |" >> opa_summary.md
+            done
+          fi
+          
+          echo "" >> opa_summary.md
+          
           if [[ "${DENY_COUNT}" -gt 0 ]]; then
             echo "### ❌ Denials (${DENY_COUNT})" >> opa_summary.md
             echo '```json' >> opa_summary.md
@@ -792,8 +808,7 @@ jobs:
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | trivy security |' >> $GITHUB_STEP_SUMMARY
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
-              echo '| ${{ env.OPA_RESULT }} | opa policy check |' >> $GITHUB_STEP_SUMMARY
-            fi
+            echo '| ${{ env.OPA_RESULT }} | opa policy check |' >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
             if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
