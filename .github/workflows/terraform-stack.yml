@@ -689,25 +689,19 @@ jobs:
               policy_name="${policy_file#.opa-policies/}"
               
               # Extract the package name from the policy file (used as key in results)
-              # Package names may have dots (e.g., "common.local_actions"), but OPA results use the full dotted path
+              # Package names may have dots (e.g., "terraform.local_actions")
               package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
-              
-              # DEBUG
-              cat opa_results.json
-              echo $package_name
 
               if [[ -n "$package_name" ]]; then
-                # Check if this policy has denials or warnings
-                # Try different possible keys: direct package name, with underscores, or as nested path
+                # Navigate the nested JSON structure using the dotted package name
+                # Convert "terraform.local_actions" to ["terraform", "local_actions"]
                 policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
-                  (try (.[$pkg].deny // []) | length) // 
-                  (try (getpath($pkg | split(".")) | .deny // []) | length) // 
-                  0' 2>/dev/null || echo "0")
+                  getpath($pkg | split(".")) | .deny // [] | length
+                ' 2>/dev/null || echo "0")
                 
                 policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
-                  (try (.[$pkg].warn // []) | length) // 
-                  (try (getpath($pkg | split(".")) | .warn // []) | length) // 
-                  0' 2>/dev/null || echo "0")
+                  getpath($pkg | split(".")) | .warn // [] | length
+                ' 2>/dev/null || echo "0")
                 
                 if [[ "$policy_denies" -gt 0 ]]; then
                   echo "| \`${policy_name}\` | ❌ ${policy_denies} denial(s) |" >> opa_summary.md
