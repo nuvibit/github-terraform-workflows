@@ -8,11 +8,6 @@ on:
         default: 'ubuntu-latest'
         required: false
         type: string
-      use_opentofu:
-        description: 'Use OpenTofu instead of Terraform'
-        default: false
-        required: false
-        type: boolean
       enable_terraform_fmt:
         description: 'Enable terraform fmt to format code'
         default: true
@@ -20,16 +15,6 @@ on:
         type: boolean
       enable_terraform_docs:
         description: 'Enable terraform-docs to generate documentation'
-        default: true
-        required: false
-        type: boolean
-      enable_terraform_lint:
-        description: 'Enable tflint to lint terraform code'
-        default: true
-        required: false
-        type: boolean
-      enable_terraform_security:
-        description: 'Enable trivy to scan terraform code for security issues'
         default: true
         required: false
         type: boolean
@@ -48,6 +33,11 @@ on:
         default: ''
         required: false
         type: string
+      use_opentofu:
+        description: 'Use OpenTofu instead of Terraform'
+        default: false
+        required: false
+        type: boolean
       terraform_version:
         description: 'Terraform version used in github action'
         default: 'latest'
@@ -73,6 +63,41 @@ on:
         default: 'app.terraform.io'
         required: false
         type: string
+      enable_opa_policy_check:
+        description: 'Enable OPA policy validation on Terraform plan (requires "enable_terraform_execution" to be true)'
+        default: false
+        required: false
+        type: boolean
+      opa_version:
+        description: 'OPA version to use in github action'
+        default: 'latest'
+        required: false
+        type: string
+      opa_policy_repo:
+        description: 'Repository where OPA policies are stored'
+        default: 'nuvibit/terraform-opa-policies'
+        required: false
+        type: string
+      opa_policy_repo_paths:
+        description: 'JSON array of policy paths/patterns to apply (e.g., ["aws/*.rego", "global/policy.rego"])'
+        default: '[]'
+        required: false
+        type: string
+      opa_policy_repo_ref:
+        description: 'Ref or branch of opa_policy_repo'
+        default: 'main'
+        required: false
+        type: string
+      opa_fail_on_warn:
+        description: 'Fail workflow on OPA warnings (not just denials)'
+        default: false
+        required: false
+        type: boolean
+      enable_terraform_lint:
+        description: 'Enable tflint to lint terraform code'
+        default: true
+        required: false
+        type: boolean
       tflint_repo:
         description: 'Public repo where tflint config is stored'
         default: 'nuvibit/github-tflint-config'
@@ -93,6 +118,11 @@ on:
         default: 'latest'
         required: false
         type: string
+      enable_trivy_security:
+        description: 'Enable trivy to scan terraform code for security issues'
+        default: true
+        required: false
+        type: boolean
       trivy_version:
         description: 'Trivy version to use in github action'
         default: 'latest'
@@ -156,7 +186,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -226,7 +256,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -268,7 +298,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -297,7 +327,7 @@ jobs:
           flags: ""
           tflint_init: true
 
-  terraform-security:
+  trivy-security:
     needs:
       - terraform-fmt
       - terraform-docs
@@ -321,7 +351,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -347,7 +377,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
-      - terraform-security
+      - trivy-security
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
     # if terraform-fmt or terraform-docs are disabled, skip their diff checks
     # also only run this job if terraform execution is enabled
@@ -356,6 +386,9 @@ jobs:
     outputs:
       execution_status: ${{ steps.set_plan_status.outputs.status || steps.set_apply_status.outputs.status }}
       execution_type: ${{ steps.set_execution_type.outputs.type }}
+      opa_status: ${{ steps.opa.outcome }}
+      opa_deny_count: ${{ steps.opa.outputs.deny_count }}
+      opa_warn_count: ${{ steps.opa.outputs.warn_count }}
 
     steps:
       - name: Get Private Module Access Token
@@ -374,7 +407,7 @@ jobs:
           git config --global url."https://x-access-token:${{ steps.private_module_access.outputs.token }}@github.com/".insteadOf "https://github.com/"
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -437,24 +470,40 @@ jobs:
         working-directory: ${{ inputs.terraform_working_directory }}
 
       - name: Terraform Plan
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' || (inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type == 'apply') }}
         id: plan
         run: |
-          if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu plan -no-color -input=false 2>&1 | tee plan_output.txt
+          set -o pipefail
+          # Generate binary plan and JSON when OPA is enabled
+          if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
+            if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
+              tofu plan -out=tfplan -no-color -input=false 2>&1 | tee plan_output.txt
+              tofu show -json tfplan > tfplan.json
+            else
+              terraform plan -out=tfplan -no-color -input=false 2>&1 | tee plan_output.txt
+              terraform show -json tfplan > tfplan.json
+            fi
           else
-            terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
+            # Standard plan without binary output when OPA is disabled (only for PRs)
+            if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
+              tofu plan -no-color -input=false 2>&1 | tee plan_output.txt
+            else
+              terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
+            fi
           fi
-          echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
-          cat plan_output.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Only capture plan output for plan execution type (PRs)
+          if [[ "${{ steps.set_execution_type.outputs.type }}" == "plan" ]]; then
+            echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
+            cat plan_output.txt >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
         working-directory: ${{ inputs.terraform_working_directory }}
         continue-on-error: true
 
       - name: Terraform Plan Summary
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' || steps.plan.outcome == 'failure' }}
         run: |
-          echo '### TERRAFORM PLAN SUMMARY :memo:' >> $GITHUB_STEP_SUMMARY
+          echo '## :memo: TERRAFORM PLAN SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '**Status:** `${{ steps.plan.outcome }}`' >> $GITHUB_STEP_SUMMARY
           echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
@@ -469,29 +518,276 @@ jobs:
           echo '</details>' >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Plan Status
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' && steps.plan.outcome == 'failure' }}
-        run: exit 1
+        if: ${{ steps.plan.outcome == 'failure' }}
+        run: |
+          echo "::error::Terraform plan failed. Cannot proceed with apply or policy checks."
+          exit 1
 
       - name: Set Execution Status
         if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
         id: set_plan_status
         run: echo "status=${{ steps.plan.outcome }}" >> $GITHUB_OUTPUT
 
+      - name: Extract OPA Policy Repo Owner
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        id: opa_repo_info
+        run: |
+          REPO="${{ inputs.opa_policy_repo }}"
+          OWNER="${REPO%%/*}"
+          REPO_NAME="${REPO#*/}"
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+          echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Get Github Access Token for OPA Policies
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        id: opa_github_app_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ steps.opa_repo_info.outputs.owner }}
+          repositories: |
+            ${{ steps.opa_repo_info.outputs.repo_name }}
+
+      - name: Checkout OPA Policies
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.opa_policy_repo }}
+          ref: ${{ inputs.opa_policy_repo_ref }}
+          path: .opa-policies-repo
+          token: ${{ steps.opa_github_app_token.outputs.token }}
+
+      - name: Copy OPA Policies to Working Directory
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        run: |
+          # Create target directory
+          mkdir -p .opa-policies
+          
+          # Validate JSON format first
+          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq empty 2>/dev/null; then
+            echo "::error::opa_policy_repo_paths is not valid JSON"
+            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
+            exit 1
+          fi
+          
+          # Check if it's an array
+          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq -e 'if type == "array" then true else false end' >/dev/null 2>&1; then
+            echo "::error::opa_policy_repo_paths must be a JSON array"
+            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
+            exit 1
+          fi
+          
+          # Check if array is empty
+          ARRAY_LENGTH=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq 'length')
+          
+          if [[ "$ARRAY_LENGTH" == "0" ]]; then
+            echo "::warning::opa_policy_repo_paths is empty. No policies will be copied."
+            echo "::warning::Set opa_policy_repo_paths to specify which policies to apply."
+            exit 0
+          fi
+          
+          # Parse JSON array
+          PATHS=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq -r '.[]')
+          
+          if [[ -z "$PATHS" ]]; then
+            echo "::error::Failed to parse opa_policy_repo_paths as JSON array"
+            exit 1
+          fi
+          
+          echo "📋 Processing opa_policy_repo_paths..."
+          COPIED_COUNT=0
+          
+          # Enable extended globbing
+          shopt -s globstar nullglob
+          
+          # Process each path/pattern
+          while IFS= read -r PATTERN; do
+            [[ -z "$PATTERN" ]] && continue
+            
+            echo "  Processing pattern: $PATTERN"
+            
+            # Expand the pattern
+            for file in .opa-policies-repo/$PATTERN; do
+              # Skip if not a file
+              [[ ! -f "$file" ]] && continue
+              
+              # Get relative path from repo root
+              REL_PATH="${file#.opa-policies-repo/}"
+              TARGET_DIR=".opa-policies/$(dirname "$REL_PATH")"
+              
+              # Create target directory structure
+              mkdir -p "$TARGET_DIR"
+              
+              # Copy file
+              cp "$file" "$TARGET_DIR/"
+              echo "    ✓ Copied: $REL_PATH"
+              COPIED_COUNT=$((COPIED_COUNT + 1))
+            done
+          done <<< "$PATHS"
+          
+          if [[ $COPIED_COUNT -eq 0 ]]; then
+            echo "::error::No policy files matched the specified patterns in opa_policy_repo_paths"
+            exit 1
+          fi
+          
+          echo "✅ Copied $COPIED_COUNT policy file(s)"
+        working-directory: ${{ github.workspace }}
+
+      - name: Setup OPA
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: ${{ inputs.opa_version }}
+
+      - name: Run OPA Policy Check
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        id: opa
+        run: |
+          echo "Running OPA policy validation..."
+          
+          # Check if policies directory exists
+          if [[ ! -d ".opa-policies" ]]; then
+            echo "::warning::No OPA policies found at .opa-policies. Skipping policy check."
+            echo "deny_count=0" >> $GITHUB_OUTPUT
+            echo "warn_count=0" >> $GITHUB_OUTPUT
+            echo "pass_count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          POLICY_PATH=".opa-policies"
+
+          # Run OPA evaluation
+          opa eval \
+            --data "${POLICY_PATH}" \
+            --input "${{ inputs.terraform_working_directory }}/tfplan.json" \
+            --format pretty \
+            'data' > opa_results.json
+
+          # Parse results and count denials, warnings, and passes
+          DENY_COUNT=$(cat opa_results.json | jq '[.. | objects | select(has("deny")) | .deny] | flatten | length' || echo "0")
+          WARN_COUNT=$(cat opa_results.json | jq '[.. | objects | select(has("warn")) | .warn] | flatten | length' || echo "0")
+          
+          echo "deny_count=${DENY_COUNT}" >> $GITHUB_OUTPUT
+          echo "warn_count=${WARN_COUNT}" >> $GITHUB_OUTPUT
+          
+          # Generate summary
+          echo "## 🛡️ OPA Policy Check Results" > opa_summary.md
+          echo "" >> opa_summary.md
+          
+          # List checked policies with their individual results
+          echo "### 📋 Policies Checked" >> opa_summary.md
+          echo "" >> opa_summary.md
+          echo "| Policy | Status |" >> opa_summary.md
+          echo "|---|---|" >> opa_summary.md
+          
+          # Find all policy files that were checked and determine their status
+          if [[ -d ".opa-policies" ]]; then
+            find .opa-policies -type f -name "*.rego" | sort | while read -r policy_file; do
+              policy_name="${policy_file#.opa-policies/}"
+              
+              # Extract the package name from the policy file (used as key in results)
+              # Package names may have dots (e.g., "terraform.local_actions")
+              package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
+
+              if [[ -n "$package_name" ]]; then
+                # Navigate the nested JSON structure using the dotted package name
+                # Convert "terraform.local_actions" to ["terraform", "local_actions"]
+                policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
+                  getpath($pkg | split(".")) | .deny // [] | length
+                ' 2>/dev/null || echo "0")
+                
+                policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
+                  getpath($pkg | split(".")) | .warn // [] | length
+                ' 2>/dev/null || echo "0")
+                
+                if [[ "$policy_denies" -gt 0 ]]; then
+                  echo "| \`${policy_name}\` | ❌ ${policy_denies} denial(s) |" >> opa_summary.md
+                elif [[ "$policy_warns" -gt 0 ]]; then
+                  echo "| \`${policy_name}\` | ⚠️ ${policy_warns} warning(s) |" >> opa_summary.md
+                else
+                  echo "| \`${policy_name}\` | ✅ Passed |" >> opa_summary.md
+                fi
+              else
+                # Fallback if package name cannot be determined
+                echo "| \`${policy_name}\` | ✓ |" >> opa_summary.md
+              fi
+            done
+          fi
+          
+          echo "" >> opa_summary.md
+          
+          if [[ "${DENY_COUNT}" -gt 0 ]]; then
+            echo "### ❌ Denials (${DENY_COUNT})" >> opa_summary.md
+            echo '```json' >> opa_summary.md
+            cat opa_results.json | jq '[.. | objects | select(has("deny")) | .deny] | flatten' >> opa_summary.md
+            echo '```' >> opa_summary.md
+            echo "" >> opa_summary.md
+          fi
+          
+          if [[ "${WARN_COUNT}" -gt 0 ]]; then
+            echo "### ⚠️ Warnings (${WARN_COUNT})" >> opa_summary.md
+            echo '```json' >> opa_summary.md
+            cat opa_results.json | jq '[.. | objects | select(has("warn")) | .warn] | flatten' >> opa_summary.md
+            echo '```' >> opa_summary.md
+            echo "" >> opa_summary.md
+          fi
+          
+          if [[ "${DENY_COUNT}" -eq 0 && "${WARN_COUNT}" -eq 0 ]]; then
+            echo "### ✅ All Policies Passed" >> opa_summary.md
+            echo "" >> opa_summary.md
+            echo "No policy violations detected." >> opa_summary.md
+          fi
+          
+          # Add to step summary
+          cat opa_summary.md >> $GITHUB_STEP_SUMMARY
+          
+          echo "OPA Check Summary:"
+          echo "  Denials: ${DENY_COUNT}"
+          echo "  Warnings: ${WARN_COUNT}"
+        working-directory: ${{ github.workspace }}
+        continue-on-error: true
+
+      - name: Fail on OPA Denials
+        if: ${{ inputs.enable_opa_policy_check && steps.opa.outcome == 'success' && steps.opa.outputs.deny_count > 0 }}
+        run: |
+          echo "::error::OPA policy check failed with ${{ steps.opa.outputs.deny_count }} denial(s)"
+          exit 1
+
+      - name: Fail on OPA Warnings
+        if: ${{ inputs.enable_opa_policy_check && steps.opa.outcome == 'success' && inputs.opa_fail_on_warn && steps.opa.outputs.warn_count > 0 }}
+        run: |
+          echo "::error::OPA policy check failed with ${{ steps.opa.outputs.warn_count }} warning(s) (fail_on_warn enabled)"
+          exit 1
+
       - name: Terraform Apply
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         id: apply
         run: |
-          if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
-            tofu apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
+          set -o pipefail
+          if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
+            # Apply the validated plan when OPA is enabled
+            if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
+              tofu apply -auto-approve -no-color tfplan 2>&1 | tee apply_output.txt
+            else
+              terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply_output.txt
+            fi
           else
-            terraform apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
+            # Standard apply without plan file when OPA is disabled
+            if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
+              tofu apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
+            else
+              terraform apply -auto-approve -no-color -input=false 2>&1 | tee apply_output.txt
+            fi
           fi
         working-directory: ${{ inputs.terraform_working_directory }}
 
       - name: Terraform Apply Summary
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         run: |
-          echo '### TERRAFORM APPLY SUMMARY :rocket:' >> $GITHUB_STEP_SUMMARY
+          echo '## :rocket: TERRAFORM APPLY SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '**Status:** `${{ steps.apply.outcome }}`' >> $GITHUB_STEP_SUMMARY
           echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
@@ -516,7 +812,7 @@ jobs:
       - terraform-fmt
       - terraform-docs
       - terraform-lint
-      - terraform-security
+      - trivy-security
       - terraform-execution
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
@@ -528,9 +824,12 @@ jobs:
           TF_FMT_RESULT: ${{ needs.terraform-fmt.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-fmt.outputs.fmt_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_DOCS_RESULT: ${{ needs.terraform-docs.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-docs.outputs.docs_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_LINT_RESULT: ${{ needs.terraform-lint.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-lint.outputs.lint_status == 'success' && ':white_check_mark:' || ':x:') }}
-          TF_SECURITY_RESULT: ${{ needs.terraform-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
+          TF_SECURITY_RESULT: ${{ needs.trivy-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.trivy-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_RESULT: ${{ needs.terraform-execution.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_TYPE: ${{ needs.terraform-execution.outputs.execution_type }}
+          OPA_STATUS: ${{ needs.terraform-execution.outputs.opa_status }}
+          OPA_DENY_COUNT: ${{ needs.terraform-execution.outputs.opa_deny_count }}
+          OPA_WARN_COUNT: ${{ needs.terraform-execution.outputs.opa_warn_count }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
@@ -539,7 +838,26 @@ jobs:
           echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_SECURITY_RESULT }} | terraform security |' >> $GITHUB_STEP_SUMMARY
+          echo '| ${{ env.TF_SECURITY_RESULT }} | trivy security |' >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
+            # Determine OPA result with details
+            if [[ "${{ env.OPA_STATUS }}" == "" ]]; then
+              OPA_DISPLAY=":heavy_minus_sign: | opa policy check"
+            elif [[ "${{ env.OPA_DENY_COUNT }}" != "" && "${{ env.OPA_DENY_COUNT }}" != "0" ]]; then
+              OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_DENY_COUNT }} denials)"
+            elif [[ "${{ env.OPA_WARN_COUNT }}" != "" && "${{ env.OPA_WARN_COUNT }}" != "0" ]]; then
+              if [[ "${{ inputs.opa_fail_on_warn }}" == "true" ]]; then
+                OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+              else
+                OPA_DISPLAY=":white_check_mark: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+              fi
+            elif [[ "${{ env.OPA_STATUS }}" == "success" ]]; then
+              OPA_DISPLAY=":white_check_mark: | opa policy check (passed)"
+            else
+              OPA_DISPLAY=":x: | opa policy check"
+            fi
+            echo "| ${OPA_DISPLAY} |" >> $GITHUB_STEP_SUMMARY
+          fi
           if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
             if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
               echo '| :heavy_minus_sign: | terraform execution |' >> $GITHUB_STEP_SUMMARY

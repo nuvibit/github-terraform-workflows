@@ -143,6 +143,7 @@ In addition to these Github Actions, custom bash scripts are run to avoid using 
 ### :white_check_mark: Features
 * **Terraform/OpenTofu Support**: Seamless switching between tools
 * **Quality Gates**: Format, documentation, lint, and security checks
+* **OPA Policy Validation**: Enforce custom policies on Terraform plans with Open Policy Agent
 * **Optional Execution**: Enable terraform plan/apply with simple toggle
 * **GitHub App Authentication**: Enhanced security with scoped tokens instead of GITHUB_TOKEN
 * **Private Module Support**: Access private Terraform modules via GitHub App authentication
@@ -163,8 +164,9 @@ The Terraform Stack workflow consists of the following steps:
 
 `Optional Execution (disabled by default)`
 5. **Terraform Plan** - On pull requests and manual triggers on non-default branches (results in workflow summary)
-6. **Terraform Apply** - On push to default branch or manual trigger on default branch (auto-approve)
-7. **Workflow Summary** - Centralized status reporting with skip indicators
+6. **OPA Policy Check** - Validate Terraform plan against custom policies (can be enabled with `enable_opa_policy_check: true`)
+7. **Terraform Apply** - On push to default branch or manual trigger on default branch (auto-approve)
+8. **Workflow Summary** - Centralized status reporting with skip indicators
 
 
 ### Inputs [Terraform Stack Workflow]
@@ -184,6 +186,12 @@ The Terraform Stack workflow consists of the following steps:
 | `terraform_modules_auth` | Authentication method for private modules (none/github-app) | `none` | false |
 | `terraform_modules_github_owner` | GitHub owner/organization name for private modules | `""` | false |
 | `terraform_registry_hostname` | Hostname of Terraform module registry (public or private) | `app.terraform.io` | false |
+| `enable_opa_policy_check` | Enable OPA policy validation on Terraform plan | `false` | false |
+| `opa_version` | OPA version to use in github action | `latest` | false |
+| `opa_policy_repo` | Repository where OPA policies are stored | `nuvibit/terraform-opa-policies` | false |
+| `opa_policy_repo_paths` | JSON array of policy paths/patterns to apply | `[]` | false |
+| `opa_policy_repo_ref` | Ref or branch of opa_policy_repo | `main` | false |
+| `opa_fail_on_warn` | Fail workflow on OPA warnings (not just denials) | `false` | false |
 | `tflint_repo` | Public repo where tflint config is stored | `nuvibit/github-tflint-config` | false |
 | `tflint_repo_config_path` | Path to tflint config in tflint_repo | `aws/.tflint.hcl` | false |
 | `tflint_repo_ref` | Ref or branch of tflint_repo | `main` | false |
@@ -323,6 +331,53 @@ jobs:
       TERRAFORM_MODULES_APP_PRIVATE_KEY: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
       TERRAFORM_REGISTRY_TOKEN: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 ```
+
+### Usage [OPA Policy Validation Example]
+*Enforce custom policies on Terraform plans*
+
+```yaml
+name: TERRAFORM STACK WITH OPA
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  terraform-stack:
+    uses: nuvibit/github-terraform-workflows/.github/workflows/terraform-stack.yml@v2
+    with:
+      enable_terraform_execution: true
+      aws_oidc_role_arn: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+      
+      # Enable OPA policy validation
+      enable_opa_policy_check: true
+      opa_policy_repo: "nuvibit/terraform-opa-policies"
+      opa_policy_repo_ref: "main"
+      
+      # Select specific policies using patterns
+      # Supports wildcards: aws/*.rego, aws/**/*.rego
+      # Mix files and patterns: ["common.rego", "aws/*.rego", "security/encryption.rego"]
+      opa_policy_repo_paths: '["aws/*.rego", "global/common.rego"]'
+      
+      # Optional: Fail on warnings (default is only denials)
+      opa_fail_on_warn: false
+    secrets:
+      GH_APP_ID: ${{ secrets.GH_APP_ID }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+```
+
+**OPA Policy Path Patterns:**
+- `"aws/*.rego"` - All .rego files in aws directory
+- `"aws/**/*.rego"` - All .rego files in aws and subdirectories  
+- `"global/common.rego"` - Specific file
+- `'["common/*.rego", "aws/tagging.rego"]'` - Multiple patterns
+
+**OPA Results:**
+- **Denials**: Block terraform apply (workflow fails)
+- **Warnings**: Informational only (unless `opa_fail_on_warn: true`)
+- Results are displayed in the workflow summary
 
 >## Workflow Trigger
 * **Purpose**: Trigger dependent workflows in other repositories for stack orchestration
