@@ -677,17 +677,36 @@ jobs:
           echo "## 🛡️ OPA Policy Check Results" > opa_summary.md
           echo "" >> opa_summary.md
           
-          # List checked policies
+          # List checked policies with their individual results
           echo "### 📋 Policies Checked" >> opa_summary.md
           echo "" >> opa_summary.md
-          echo "| Policy File | Status |" >> opa_summary.md
+          echo "| Policy | Status |" >> opa_summary.md
           echo "|---|---|" >> opa_summary.md
           
-          # Find all policy files that were checked
+          # Find all policy files that were checked and determine their status
           if [[ -d ".opa-policies" ]]; then
             find .opa-policies -type f -name "*.rego" | sort | while read -r policy_file; do
               policy_name="${policy_file#.opa-policies/}"
-              echo "| \`${policy_name}\` | ✓ |" >> opa_summary.md
+              
+              # Extract the package name from the policy file (used as key in results)
+              package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
+              
+              if [[ -n "$package_name" ]]; then
+                # Check if this policy has denials
+                policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" 'try (.[$pkg].deny // []) | length' 2>/dev/null || echo "0")
+                policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" 'try (.[$pkg].warn // []) | length' 2>/dev/null || echo "0")
+                
+                if [[ "$policy_denies" != "0" && "$policy_denies" != "null" ]]; then
+                  echo "| \`${policy_name}\` | ❌ ${policy_denies} denial(s) |" >> opa_summary.md
+                elif [[ "$policy_warns" != "0" && "$policy_warns" != "null" ]]; then
+                  echo "| \`${policy_name}\` | ⚠️ ${policy_warns} warning(s) |" >> opa_summary.md
+                else
+                  echo "| \`${policy_name}\` | ✅ Passed |" >> opa_summary.md
+                fi
+              else
+                # Fallback if package name cannot be determined
+                echo "| \`${policy_name}\` | ✓ |" >> opa_summary.md
+              fi
             done
           fi
           
