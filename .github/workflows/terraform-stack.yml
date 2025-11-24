@@ -642,6 +642,20 @@ jobs:
         with:
           version: ${{ inputs.opa_version }}
 
+      - name: Debug Terraform Plan JSON
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        run: |
+          echo "### 🔍 Terraform Plan JSON Debug" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Show archive_file resources in plan</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat "${{ inputs.terraform_working_directory }}/tfplan.json" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+        working-directory: ${{ github.workspace }}
+
       - name: Run OPA Policy Check
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         id: opa
@@ -723,6 +737,20 @@ jobs:
           echo "  Warnings: ${WARN_COUNT}"
         working-directory: ${{ github.workspace }}
         continue-on-error: true
+
+      - name: Debug OPA Results
+        if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        run: |
+          echo "### 🔍 Full OPA Results Debug" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Show complete OPA evaluation results</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat opa_results.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+        working-directory: ${{ github.workspace }}
 
       - name: Fail on OPA Denials
         if: ${{ inputs.enable_opa_policy_check && steps.opa.outcome == 'success' && steps.opa.outputs.deny_count > 0 }}
