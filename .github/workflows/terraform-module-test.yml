@@ -179,7 +179,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -246,7 +246,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -297,7 +297,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -346,7 +346,7 @@ jobs:
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -387,7 +387,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: ${{ inputs.terratest_config_repo }}
           ref: ${{ inputs.terratest_config_repo_ref }}
@@ -431,7 +431,7 @@ jobs:
           git config --global url."https://x-access-token:${{ steps.private_module_access.outputs.token }}@github.com/".insteadOf "https://github.com/"
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
