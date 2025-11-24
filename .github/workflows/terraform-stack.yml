@@ -473,6 +473,7 @@ jobs:
         if: ${{ steps.set_execution_type.outputs.type == 'plan' || (inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type == 'apply') }}
         id: plan
         run: |
+          set -o pipefail
           # Generate binary plan and JSON when OPA is enabled
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
             if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
@@ -517,8 +518,10 @@ jobs:
           echo '</details>' >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Plan Status
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' && steps.plan.outcome == 'failure' }}
-        run: exit 1
+        if: ${{ steps.plan.outcome == 'failure' }}
+        run: |
+          echo "::error::Terraform plan failed. Cannot proceed with apply or policy checks."
+          exit 1
 
       - name: Set Execution Status
         if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
@@ -737,6 +740,7 @@ jobs:
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
         id: apply
         run: |
+          set -o pipefail
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
             # Apply the validated plan when OPA is enabled
             if [[ "${{ inputs.use_opentofu }}" == "true" ]]; then
