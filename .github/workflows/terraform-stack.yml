@@ -692,6 +692,10 @@ jobs:
               # Package names may have dots (e.g., "common.local_actions"), but OPA results use the full dotted path
               package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
               
+              # DEBUG
+              cat opa_results.json
+              echo $package_name
+
               if [[ -n "$package_name" ]]; then
                 # Check if this policy has denials or warnings
                 # Try different possible keys: direct package name, with underscores, or as nested path
