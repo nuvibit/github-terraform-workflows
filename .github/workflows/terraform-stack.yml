@@ -689,16 +689,25 @@ jobs:
               policy_name="${policy_file#.opa-policies/}"
               
               # Extract the package name from the policy file (used as key in results)
+              # Package names may have dots (e.g., "common.local_actions"), but OPA results use the full dotted path
               package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
               
               if [[ -n "$package_name" ]]; then
-                # Check if this policy has denials
-                policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" 'try (.[$pkg].deny // []) | length' 2>/dev/null || echo "0")
-                policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" 'try (.[$pkg].warn // []) | length' 2>/dev/null || echo "0")
+                # Check if this policy has denials or warnings
+                # Try different possible keys: direct package name, with underscores, or as nested path
+                policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
+                  (try (.[$pkg].deny // []) | length) // 
+                  (try (getpath($pkg | split(".")) | .deny // []) | length) // 
+                  0' 2>/dev/null || echo "0")
                 
-                if [[ "$policy_denies" != "0" && "$policy_denies" != "null" ]]; then
+                policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
+                  (try (.[$pkg].warn // []) | length) // 
+                  (try (getpath($pkg | split(".")) | .warn // []) | length) // 
+                  0' 2>/dev/null || echo "0")
+                
+                if [[ "$policy_denies" -gt 0 ]]; then
                   echo "| \`${policy_name}\` | ❌ ${policy_denies} denial(s) |" >> opa_summary.md
-                elif [[ "$policy_warns" != "0" && "$policy_warns" != "null" ]]; then
+                elif [[ "$policy_warns" -gt 0 ]]; then
                   echo "| \`${policy_name}\` | ⚠️ ${policy_warns} warning(s) |" >> opa_summary.md
                 else
                   echo "| \`${policy_name}\` | ✅ Passed |" >> opa_summary.md
@@ -820,7 +829,9 @@ jobs:
           TF_SECURITY_RESULT: ${{ needs.trivy-security.result == 'skipped' && ':heavy_minus_sign:' || (needs.trivy-security.outputs.security_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_RESULT: ${{ needs.terraform-execution.result == 'skipped' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.execution_status == 'success' && ':white_check_mark:' || ':x:') }}
           TF_EXECUTION_TYPE: ${{ needs.terraform-execution.outputs.execution_type }}
-          OPA_RESULT: ${{ needs.terraform-execution.outputs.opa_status == '' && ':heavy_minus_sign:' || (needs.terraform-execution.outputs.opa_status == 'success' && ':white_check_mark:' || ':x:') }}
+          OPA_STATUS: ${{ needs.terraform-execution.outputs.opa_status }}
+          OPA_DENY_COUNT: ${{ needs.terraform-execution.outputs.opa_deny_count }}
+          OPA_WARN_COUNT: ${{ needs.terraform-execution.outputs.opa_warn_count }}
         run: |
           echo '### WORKFLOW SUMMARY :octocat:' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
@@ -831,7 +842,23 @@ jobs:
           echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
           echo '| ${{ env.TF_SECURITY_RESULT }} | trivy security |' >> $GITHUB_STEP_SUMMARY
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
-            echo '| ${{ env.OPA_RESULT }} | opa policy check |' >> $GITHUB_STEP_SUMMARY
+            # Determine OPA result with details
+            if [[ "${{ env.OPA_STATUS }}" == "" ]]; then
+              OPA_DISPLAY=":heavy_minus_sign: | opa policy check"
+            elif [[ "${{ env.OPA_DENY_COUNT }}" != "" && "${{ env.OPA_DENY_COUNT }}" != "0" ]]; then
+              OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_DENY_COUNT }} denials)"
+            elif [[ "${{ env.OPA_WARN_COUNT }}" != "" && "${{ env.OPA_WARN_COUNT }}" != "0" ]]; then
+              if [[ "${{ inputs.opa_fail_on_warn }}" == "true" ]]; then
+                OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+              else
+                OPA_DISPLAY=":white_check_mark: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+              fi
+            elif [[ "${{ env.OPA_STATUS }}" == "success" ]]; then
+              OPA_DISPLAY=":white_check_mark: | opa policy check (passed)"
+            else
+              OPA_DISPLAY=":x: | opa policy check"
+            fi
+            echo "| ${OPA_DISPLAY} |" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
             if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
