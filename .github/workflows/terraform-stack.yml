@@ -501,7 +501,7 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Plan Summary
-        if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
+        if: ${{ steps.set_execution_type.outputs.type == 'plan' || steps.plan.outcome == 'failure' }}
         run: |
           echo '## :memo: TERRAFORM PLAN SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
