@@ -50,7 +50,7 @@ on:
         type: string
       terratest_version:
         description: 'Terratest version'
-        default: 'v0.48.0'
+        default: 'v0.56.0'
         required: false
         type: string
       terratest_path:
