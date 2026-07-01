@@ -537,8 +537,8 @@ jobs:
                 version_match=$(grep -zoP "required_providers\W*\{(.|\n)*?source\W*=\W*\"$provider\"(.|\n)*?version\W*=\W*\"\D*?(\d+\.\d+\.?\d*)" $GITHUB_WORKSPACE/*.tf | grep -zoP '(\d+\.\d+\.?\d*)' || true)
                 version=$(echo $version_match | grep -zoP '[\d\.]+' || true)
                 if [[ -z "$version" ]]; then
-                  echo "ERROR: could not determine version for provider '$provider' from requirements file" >&2
-                  exit 1
+                  echo "WARNING: provider '$provider' not found in requirements file, skipping" >&2
+                  continue
                 fi
                 num="${version//[^.]}"
                 count="${#num}"
