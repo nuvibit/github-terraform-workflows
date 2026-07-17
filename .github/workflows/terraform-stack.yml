@@ -1,5 +1,12 @@
 name: TERRAFORM STACK
 
+# Security Best Practices:
+#   * Always pin actions to full commit SHAs, as tags are mutable
+#   * Secrets are injected per step, never job- or workflow-wide
+#   * GitHub App tokens are minted per job with the minimum permission set
+#   * Checkout credentials are only persisted where a later step must push
+#   * Values passed to run: scripts via env, never inline ${{ }} interpolation
+
 on:
   workflow_call:
     inputs:
@@ -114,7 +121,7 @@ on:
         required: false
         type: string
       tflint_version:
-        description: 'Tflint version to use in github action'
+        description: 'Tflint version to use in github action. Prefer pinning an explicit version over "latest".'
         default: 'latest'
         required: false
         type: string
@@ -154,7 +161,7 @@ on:
         required: true
       GH_APP_PRIVATE_KEY:
         required: true
-      # (optional) GitHub App credentials for accessing private Terraform modules (requires 'terraform_modules_auth' to be set to "github-app" and 'terraform_modules_github_owner' to be set)
+      # (optional) GitHub App credentials for accessing private Terraform modules (requires 'terraform_modules_auth' to be set to "github-app" and 'terraform_modules_github_owner' to be set)
       TERRAFORM_MODULES_APP_ID:
         required: false
       TERRAFORM_MODULES_APP_PRIVATE_KEY:
@@ -166,10 +173,15 @@ on:
 # Ensures that only one workflow runs at a time
 concurrency: ${{ inputs.concurrency_group }}
 
+# Set Default GITHUB_TOKEN read-only; jobs escalate individually where needed
+permissions:
+  contents: read
+
 jobs:
   terraform-fmt:
     if: ${{ inputs.enable_terraform_fmt }}
     runs-on: ${{ inputs.github_runner }}
+    timeout-minutes: 15
     outputs:
       fmt_status: ${{ steps.fmt.outcome }}
       diff_exists: ${{ steps.fmt_commit.outputs.diff }}
@@ -177,30 +189,34 @@ jobs:
     steps:
       - name: Get Github Access Token
         id: github_app_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # restrict token to only contents:write (needed to push the fmt commit)
+          permission-contents: write
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
+          # do not persist App token in .git/config for following steps/actions
+          persist-credentials: false
 
       - name: Setup Terraform
         if: ${{ inputs.use_opentofu == false }}
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
 
       - name: Setup OpenTofu
         if: ${{ inputs.use_opentofu == true }}
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: ${{ inputs.terraform_version }}
           tofu_wrapper: false
@@ -217,9 +233,12 @@ jobs:
 
       - name: Commit files
         id: fmt_commit
+        env:
+          COMMIT_USER: ${{ inputs.commit_user }}
+          COMMIT_EMAIL: ${{ inputs.commit_email }}
         run: |
-          git config --local user.name "${{ inputs.commit_user }}"
-          git config --local user.email "${{ inputs.commit_email }}"
+          git config --local user.name "${COMMIT_USER}"
+          git config --local user.email "${COMMIT_EMAIL}"
           if [[ -z $(git status -s) ]]; then
             echo "diff=false" >> $GITHUB_OUTPUT
           else
@@ -227,11 +246,16 @@ jobs:
           fi
           git diff-index --quiet HEAD || git commit -m "style(terraform fmt): format code" -a
 
+      # Replaces third-party ad-m/github-push-action with a plain git push;
+      # the App token is injected via env and never written to .git/config
       - name: Push changes
-        uses: ad-m/github-push-action@v1.0.0
-        with:
-          github_token: ${{ steps.github_app_token.outputs.token }}
-          branch: ${{ github.event.pull_request.head.ref || github.ref }}
+        if: ${{ steps.fmt_commit.outputs.diff == 'true' }}
+        env:
+          GH_APP_TOKEN: ${{ steps.github_app_token.outputs.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref }}
+        run: git push "https://x-access-token:${GH_APP_TOKEN}@${SERVER_URL#https://}/${REPOSITORY}.git" "HEAD:${BRANCH}"
 
   terraform-docs:
     needs:
@@ -240,6 +264,7 @@ jobs:
     # if terraform-fmt is disabled, skip the diff check
     if: ${{ always() && inputs.enable_terraform_docs && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
+    timeout-minutes: 15
     outputs:
       docs_status: ${{ steps.docs.outcome }}
       diff_exists: ${{ steps.docs.outputs.num_changed > 0 }}
@@ -247,23 +272,27 @@ jobs:
     steps:
       - name: Get Github Access Token
         id: github_app_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # restrict token to only contents:write (needed to push the docs commit)
+          permission-contents: write
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
+          # Persist credentials to be used later by terraform-docs action (git-push: true)
+          persist-credentials: true
 
       - name: Run Terraform Docs
         id: docs
-        uses: terraform-docs/gh-actions@v1.4.1
+        uses: terraform-docs/gh-actions@6de6da0cefcc6b4b7a5cbea4d79d97060733093c # v1.4.1
         with:
           working-dir: ${{ inputs.terraform_working_directory }}
           output-file: README.md
@@ -283,25 +312,32 @@ jobs:
     # if terraform-fmt or terraform-docs are disabled, skip their diff checks
     if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_lint && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
+    timeout-minutes: 15
     outputs:
       lint_status: ${{ steps.lint.outcome }}
 
     steps:
       - name: Get Github Access Token
         id: github_app_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # read-only token for checkout, 'checks: write' for reviewdog github-pr-check
+          permission-contents: read
+          permission-checks: write
+          permission-pull-requests: read
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
+          # read-only job: never persist credentials into .git/config
+          persist-credentials: false
 
       - name: Get TFLint Config
         uses: terraform-linters/tflint-load-config-action@v2
@@ -314,7 +350,7 @@ jobs:
           token: ${{ steps.github_app_token.outputs.token }}
 
       - name: Run TFLint
-        uses: reviewdog/action-tflint@v1
+        uses: reviewdog/action-tflint@54a5e5aed57dcfbb4662ec548de876df33d6288d # v1.25.0
         id: lint
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
@@ -334,30 +370,38 @@ jobs:
       - terraform-lint
     # this job should only run if there are no new commits caused by terraform-fmt or terraform-docs
     # if terraform-fmt or terraform-docs are disabled, skip their diff checks
-    if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_security && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
+    # FIX: condition previously referenced non-existent input 'enable_terraform_security'
+    if: ${{ always() && !failure() && !cancelled() && inputs.enable_trivy_security && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
+    timeout-minutes: 15
     outputs:
       security_status: ${{ steps.security.outcome }}
 
     steps:
       - name: Get Github Access Token
         id: github_app_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          # read-only token for checkout, 'checks: write' for reviewdog github-pr-check
+          permission-contents: read
+          permission-checks: write
+          permission-pull-requests: read
           # if owner and repositories are empty, access will be scoped to only the current repository
           # owner: ''
           # repositories: ''
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ steps.github_app_token.outputs.token }}
-      
+          # read-only job: never persist credentials into .git/config
+          persist-credentials: false
+
       - name: Run Trivy
-        uses: reviewdog/action-trivy@v1
+        uses: reviewdog/action-trivy@102f1eda529aaab3502cbef08bbb0050ee0b6b60 # v1.15.0
         id: security
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
@@ -383,6 +427,11 @@ jobs:
     # also only run this job if terraform execution is enabled
     if: ${{ always() && !failure() && !cancelled() && inputs.enable_terraform_execution && (!inputs.enable_terraform_fmt || needs.terraform-fmt.outputs.diff_exists == 'false') && (!inputs.enable_terraform_docs || needs.terraform-docs.outputs.diff_exists == 'false') }}
     runs-on: ${{ inputs.github_runner }}
+    timeout-minutes: 60
+    # id-token: write is required for AWS OIDC federation; scoped to this job only
+    permissions:
+      id-token: write
+      contents: read
     outputs:
       execution_status: ${{ steps.set_plan_status.outputs.status || steps.set_apply_status.outputs.status }}
       execution_type: ${{ steps.set_execution_type.outputs.type }}
@@ -394,20 +443,25 @@ jobs:
       - name: Get Private Module Access Token
         if: ${{ inputs.terraform_modules_auth == 'github-app' }}
         id: private_module_access
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.TERRAFORM_MODULES_APP_ID }}
           private-key: ${{ secrets.TERRAFORM_MODULES_APP_PRIVATE_KEY }}
           # If owner is set and repositories is empty, access will be scoped to all repositories in the provided repository owner's installation
           owner: ${{ inputs.terraform_modules_github_owner }}
+          # least privilege: module download only needs read access
+          permission-contents: read
 
+      # Write read-only module token to ~/.gitconfig; removed by the cleanup step
       - name: Set Private Module Access Token
         if: ${{ inputs.terraform_modules_auth == 'github-app' }}
+        env:
+          MODULES_TOKEN: ${{ steps.private_module_access.outputs.token }}
         run: |
-          git config --global url."https://x-access-token:${{ steps.private_module_access.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${MODULES_TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -416,7 +470,7 @@ jobs:
 
       - name: Setup Terraform
         if: ${{ inputs.use_opentofu == false }}
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: ${{ inputs.terraform_version }}
           terraform_wrapper: false
@@ -425,7 +479,7 @@ jobs:
 
       - name: Setup OpenTofu
         if: ${{ inputs.use_opentofu == true }}
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: ${{ inputs.terraform_version }}
           tofu_wrapper: false
@@ -434,16 +488,20 @@ jobs:
 
       - name: Determine Execution Type
         id: set_execution_type
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GIT_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ inputs.default_branch }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
             echo "type=plan" >> $GITHUB_OUTPUT
             echo "::notice::Will run Terraform Plan for pull request"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" != "refs/heads/${{ inputs.default_branch }}" ]]; then
+          elif [[ "${EVENT_NAME}" == "workflow_dispatch" && "${GIT_REF}" != "refs/heads/${DEFAULT_BRANCH}" ]]; then
             echo "type=plan" >> $GITHUB_OUTPUT
             echo "::notice::Will run Terraform Plan for manual trigger on non-default branch"
-          elif [[ ("${{ github.event_name }}" == "push" || "${{ github.event_name }}" == "workflow_dispatch") && "${{ github.ref }}" == "refs/heads/${{ inputs.default_branch }}" ]]; then
+          elif [[ ("${EVENT_NAME}" == "push" || "${EVENT_NAME}" == "workflow_dispatch") && "${GIT_REF}" == "refs/heads/${DEFAULT_BRANCH}" ]]; then
             echo "type=apply" >> $GITHUB_OUTPUT
-            echo "::notice::Will run Terraform Apply for ${{ github.event_name }} on ${{ inputs.default_branch }}"
+            echo "::notice::Will run Terraform Apply for ${EVENT_NAME} on ${DEFAULT_BRANCH}"
           else
             echo "type=skip" >> $GITHUB_OUTPUT
             echo "::notice::Skipping Terraform execution - not a PR or push/manual trigger"
@@ -451,7 +509,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: ${{ inputs.aws_oidc_role_arn != '' }}
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ inputs.aws_oidc_role_arn }}
           role-session-name: GitHubActions-${{ github.run_id }}
@@ -502,17 +560,22 @@ jobs:
 
       - name: Terraform Plan Summary
         if: ${{ steps.set_execution_type.outputs.type == 'plan' || steps.plan.outcome == 'failure' }}
+        env:
+          TF_WORKING_DIR: ${{ inputs.terraform_working_directory }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           echo '## :memo: TERRAFORM PLAN SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '**Status:** `${{ steps.plan.outcome }}`' >> $GITHUB_STEP_SUMMARY
-          echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
-          echo '**Action:** `${{ github.event_name }}`' >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** \`${PLAN_OUTCOME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${TRIGGER_ACTOR}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** \`${EVENT_NAME}\`" >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '<details><summary>Show Plan Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          cat ${{ inputs.terraform_working_directory }}/plan_output.txt >> $GITHUB_STEP_SUMMARY
+          cat "${TF_WORKING_DIR}/plan_output.txt" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
@@ -526,128 +589,139 @@ jobs:
       - name: Set Execution Status
         if: ${{ steps.set_execution_type.outputs.type == 'plan' }}
         id: set_plan_status
-        run: echo "status=${{ steps.plan.outcome }}" >> $GITHUB_OUTPUT
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+        run: echo "status=${PLAN_OUTCOME}" >> $GITHUB_OUTPUT
 
       - name: Extract OPA Policy Repo Owner
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         id: opa_repo_info
+        env:
+          OPA_POLICY_REPO: ${{ inputs.opa_policy_repo }}
         run: |
-          REPO="${{ inputs.opa_policy_repo }}"
-          OWNER="${REPO%%/*}"
-          REPO_NAME="${REPO#*/}"
+          OWNER="${OPA_POLICY_REPO%%/*}"
+          REPO_NAME="${OPA_POLICY_REPO#*/}"
           echo "owner=${OWNER}" >> $GITHUB_OUTPUT
           echo "repo_name=${REPO_NAME}" >> $GITHUB_OUTPUT
 
       - name: Get Github Access Token for OPA Policies
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         id: opa_github_app_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ steps.opa_repo_info.outputs.owner }}
           repositories: |
             ${{ steps.opa_repo_info.outputs.repo_name }}
+          # least privilege: checking out the policy repo only needs read access
+          permission-contents: read
 
       - name: Checkout OPA Policies
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: ${{ inputs.opa_policy_repo }}
           ref: ${{ inputs.opa_policy_repo_ref }}
           path: .opa-policies-repo
           token: ${{ steps.opa_github_app_token.outputs.token }}
+          # Not required to persist credentials into .git/config
+          persist-credentials: false
 
       - name: Copy OPA Policies to Working Directory
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
+        env:
+          POLICY_REPO_PATHS: ${{ inputs.opa_policy_repo_paths }}
         run: |
           # Create target directory
           mkdir -p .opa-policies
-          
+
           # Validate JSON format first
-          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq empty 2>/dev/null; then
+          if ! echo "${POLICY_REPO_PATHS}" | jq empty 2>/dev/null; then
             echo "::error::opa_policy_repo_paths is not valid JSON"
-            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Received: ${POLICY_REPO_PATHS}"
             echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
             exit 1
           fi
-          
+
           # Check if it's an array
-          if ! echo '${{ inputs.opa_policy_repo_paths }}' | jq -e 'if type == "array" then true else false end' >/dev/null 2>&1; then
+          if ! echo "${POLICY_REPO_PATHS}" | jq -e 'if type == "array" then true else false end' >/dev/null 2>&1; then
             echo "::error::opa_policy_repo_paths must be a JSON array"
-            echo "::error::Received: ${{ inputs.opa_policy_repo_paths }}"
+            echo "::error::Received: ${POLICY_REPO_PATHS}"
             echo "::error::Expected format: [\"path/to/policy.rego\", \"other/*.rego\"]"
             exit 1
           fi
-          
+
           # Check if array is empty
-          ARRAY_LENGTH=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq 'length')
-          
+          ARRAY_LENGTH=$(echo "${POLICY_REPO_PATHS}" | jq 'length')
+
           if [[ "$ARRAY_LENGTH" == "0" ]]; then
             echo "::warning::opa_policy_repo_paths is empty. No policies will be copied."
             echo "::warning::Set opa_policy_repo_paths to specify which policies to apply."
             exit 0
           fi
-          
+
           # Parse JSON array
-          PATHS=$(echo '${{ inputs.opa_policy_repo_paths }}' | jq -r '.[]')
-          
+          PATHS=$(echo "${POLICY_REPO_PATHS}" | jq -r '.[]')
+
           if [[ -z "$PATHS" ]]; then
             echo "::error::Failed to parse opa_policy_repo_paths as JSON array"
             exit 1
           fi
-          
+
           echo "📋 Processing opa_policy_repo_paths..."
           COPIED_COUNT=0
-          
+
           # Enable extended globbing
           shopt -s globstar nullglob
-          
+
           # Process each path/pattern
           while IFS= read -r PATTERN; do
             [[ -z "$PATTERN" ]] && continue
-            
+
             echo "  Processing pattern: $PATTERN"
-            
+
             # Expand the pattern
             for file in .opa-policies-repo/$PATTERN; do
               # Skip if not a file
               [[ ! -f "$file" ]] && continue
-              
+
               # Get relative path from repo root
               REL_PATH="${file#.opa-policies-repo/}"
               TARGET_DIR=".opa-policies/$(dirname "$REL_PATH")"
-              
+
               # Create target directory structure
               mkdir -p "$TARGET_DIR"
-              
+
               # Copy file
               cp "$file" "$TARGET_DIR/"
               echo "    ✓ Copied: $REL_PATH"
               COPIED_COUNT=$((COPIED_COUNT + 1))
             done
           done <<< "$PATHS"
-          
+
           if [[ $COPIED_COUNT -eq 0 ]]; then
             echo "::error::No policy files matched the specified patterns in opa_policy_repo_paths"
             exit 1
           fi
-          
+
           echo "✅ Copied $COPIED_COUNT policy file(s)"
         working-directory: ${{ github.workspace }}
 
       - name: Setup OPA
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
-        uses: open-policy-agent/setup-opa@v2
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
           version: ${{ inputs.opa_version }}
 
       - name: Run OPA Policy Check
         if: ${{ inputs.enable_opa_policy_check && steps.set_execution_type.outputs.type != 'skip' }}
         id: opa
+        env:
+          TF_WORKING_DIR: ${{ inputs.terraform_working_directory }}
         run: |
           echo "Running OPA policy validation..."
-          
+
           # Check if policies directory exists
           if [[ ! -d ".opa-policies" ]]; then
             echo "::warning::No OPA policies found at .opa-policies. Skipping policy check."
@@ -656,38 +730,38 @@ jobs:
             echo "pass_count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           POLICY_PATH=".opa-policies"
 
           # Run OPA evaluation
           opa eval \
             --data "${POLICY_PATH}" \
-            --input "${{ inputs.terraform_working_directory }}/tfplan.json" \
+            --input "${TF_WORKING_DIR}/tfplan.json" \
             --format pretty \
             'data' > opa_results.json
 
           # Parse results and count denials, warnings, and passes
           DENY_COUNT=$(cat opa_results.json | jq '[.. | objects | select(has("deny")) | .deny] | flatten | length' || echo "0")
           WARN_COUNT=$(cat opa_results.json | jq '[.. | objects | select(has("warn")) | .warn] | flatten | length' || echo "0")
-          
+
           echo "deny_count=${DENY_COUNT}" >> $GITHUB_OUTPUT
           echo "warn_count=${WARN_COUNT}" >> $GITHUB_OUTPUT
-          
+
           # Generate summary
           echo "## 🛡️ OPA Policy Check Results" > opa_summary.md
           echo "" >> opa_summary.md
-          
+
           # List checked policies with their individual results
           echo "### 📋 Policies Checked" >> opa_summary.md
           echo "" >> opa_summary.md
           echo "| Policy | Status |" >> opa_summary.md
           echo "|---|---|" >> opa_summary.md
-          
+
           # Find all policy files that were checked and determine their status
           if [[ -d ".opa-policies" ]]; then
             find .opa-policies -type f -name "*.rego" | sort | while read -r policy_file; do
               policy_name="${policy_file#.opa-policies/}"
-              
+
               # Extract the package name from the policy file (used as key in results)
               # Package names may have dots (e.g., "terraform.local_actions")
               package_name=$(grep -m 1 "^package " "$policy_file" | awk '{print $2}')
@@ -698,11 +772,11 @@ jobs:
                 policy_denies=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
                   getpath($pkg | split(".")) | .deny // [] | length
                 ' 2>/dev/null || echo "0")
-                
+
                 policy_warns=$(cat opa_results.json | jq -r --arg pkg "$package_name" '
                   getpath($pkg | split(".")) | .warn // [] | length
                 ' 2>/dev/null || echo "0")
-                
+
                 if [[ "$policy_denies" -gt 0 ]]; then
                   echo "| \`${policy_name}\` | ❌ ${policy_denies} denial(s) |" >> opa_summary.md
                 elif [[ "$policy_warns" -gt 0 ]]; then
@@ -716,9 +790,9 @@ jobs:
               fi
             done
           fi
-          
+
           echo "" >> opa_summary.md
-          
+
           if [[ "${DENY_COUNT}" -gt 0 ]]; then
             echo "### ❌ Denials (${DENY_COUNT})" >> opa_summary.md
             echo '```json' >> opa_summary.md
@@ -726,7 +800,7 @@ jobs:
             echo '```' >> opa_summary.md
             echo "" >> opa_summary.md
           fi
-          
+
           if [[ "${WARN_COUNT}" -gt 0 ]]; then
             echo "### ⚠️ Warnings (${WARN_COUNT})" >> opa_summary.md
             echo '```json' >> opa_summary.md
@@ -734,16 +808,16 @@ jobs:
             echo '```' >> opa_summary.md
             echo "" >> opa_summary.md
           fi
-          
+
           if [[ "${DENY_COUNT}" -eq 0 && "${WARN_COUNT}" -eq 0 ]]; then
             echo "### ✅ All Policies Passed" >> opa_summary.md
             echo "" >> opa_summary.md
             echo "No policy violations detected." >> opa_summary.md
           fi
-          
+
           # Add to step summary
           cat opa_summary.md >> $GITHUB_STEP_SUMMARY
-          
+
           echo "OPA Check Summary:"
           echo "  Denials: ${DENY_COUNT}"
           echo "  Warnings: ${WARN_COUNT}"
@@ -752,14 +826,18 @@ jobs:
 
       - name: Fail on OPA Denials
         if: ${{ inputs.enable_opa_policy_check && steps.opa.outcome == 'success' && steps.opa.outputs.deny_count > 0 }}
+        env:
+          OPA_DENY_COUNT: ${{ steps.opa.outputs.deny_count }}
         run: |
-          echo "::error::OPA policy check failed with ${{ steps.opa.outputs.deny_count }} denial(s)"
+          echo "::error::OPA policy check failed with ${OPA_DENY_COUNT} denial(s)"
           exit 1
 
       - name: Fail on OPA Warnings
         if: ${{ inputs.enable_opa_policy_check && steps.opa.outcome == 'success' && inputs.opa_fail_on_warn && steps.opa.outputs.warn_count > 0 }}
+        env:
+          OPA_WARN_COUNT: ${{ steps.opa.outputs.warn_count }}
         run: |
-          echo "::error::OPA policy check failed with ${{ steps.opa.outputs.warn_count }} warning(s) (fail_on_warn enabled)"
+          echo "::error::OPA policy check failed with ${OPA_WARN_COUNT} warning(s) (fail_on_warn enabled)"
           exit 1
 
       - name: Terraform Apply
@@ -786,18 +864,24 @@ jobs:
 
       - name: Terraform Apply Summary
         if: ${{ steps.set_execution_type.outputs.type == 'apply' }}
+        env:
+          TF_WORKING_DIR: ${{ inputs.terraform_working_directory }}
+          GIT_REF: ${{ github.ref }}
+          APPLY_OUTCOME: ${{ steps.apply.outcome }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           echo '## :rocket: TERRAFORM APPLY SUMMARY' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
-          echo '**Status:** `${{ steps.apply.outcome }}`' >> $GITHUB_STEP_SUMMARY
-          echo '**Triggered by:** @${{ github.actor }}' >> $GITHUB_STEP_SUMMARY
-          echo '**Action:** `${{ github.event_name }}`' >> $GITHUB_STEP_SUMMARY
-          echo '**Branch:** `${{ github.ref }}`' >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** \`${APPLY_OUTCOME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${TRIGGER_ACTOR}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** \`${EVENT_NAME}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${GIT_REF}\`" >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '<details><summary>Show Apply Output</summary>' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```terraform' >> $GITHUB_STEP_SUMMARY
-          cat ${{ inputs.terraform_working_directory }}/apply_output.txt >> $GITHUB_STEP_SUMMARY
+          cat "${TF_WORKING_DIR}/apply_output.txt" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '</details>' >> $GITHUB_STEP_SUMMARY
@@ -805,7 +889,18 @@ jobs:
       - name: Set Execution Status
         if: ${{ always() && steps.set_execution_type.outputs.type == 'apply' }}
         id: set_apply_status
-        run: echo "status=${{ steps.apply.outcome }}" >> $GITHUB_OUTPUT
+        env:
+          APPLY_OUTCOME: ${{ steps.apply.outcome }}
+        run: echo "status=${APPLY_OUTCOME}" >> $GITHUB_OUTPUT
+
+      # Guard for switch to self-hosted runners:
+      # Avoid '~/.gitconfig' persisting across jobs on non-ephemeral runners
+      - name: Cleanup Private Module Access Token
+        if: ${{ always() && inputs.terraform_modules_auth == 'github-app' }}
+        env:
+          MODULES_TOKEN: ${{ steps.private_module_access.outputs.token }}
+        run: |
+          git config --global --remove-section "url.https://x-access-token:${MODULES_TOKEN}@github.com/" 2>/dev/null || true
 
   workflow-summary:
     needs:
@@ -816,6 +911,7 @@ jobs:
       - terraform-execution
     runs-on: ${{ inputs.github_runner }}
     if: ${{ always() }}
+    timeout-minutes: 10
 
     steps:
       - name: Workflow Summary
@@ -835,23 +931,23 @@ jobs:
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '| result | job |' >> $GITHUB_STEP_SUMMARY
           echo '|---|---|' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_FMT_RESULT }} | terraform format |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_DOCS_RESULT }} | terraform docs |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_LINT_RESULT }} | terraform lint |' >> $GITHUB_STEP_SUMMARY
-          echo '| ${{ env.TF_SECURITY_RESULT }} | trivy security |' >> $GITHUB_STEP_SUMMARY
+          echo "| ${TF_FMT_RESULT} | terraform format |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${TF_DOCS_RESULT} | terraform docs |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${TF_LINT_RESULT} | terraform lint |" >> $GITHUB_STEP_SUMMARY
+          echo "| ${TF_SECURITY_RESULT} | trivy security |" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ inputs.enable_opa_policy_check }}" == "true" ]]; then
             # Determine OPA result with details
-            if [[ "${{ env.OPA_STATUS }}" == "" ]]; then
+            if [[ "${OPA_STATUS}" == "" ]]; then
               OPA_DISPLAY=":heavy_minus_sign: | opa policy check"
-            elif [[ "${{ env.OPA_DENY_COUNT }}" != "" && "${{ env.OPA_DENY_COUNT }}" != "0" ]]; then
-              OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_DENY_COUNT }} denials)"
-            elif [[ "${{ env.OPA_WARN_COUNT }}" != "" && "${{ env.OPA_WARN_COUNT }}" != "0" ]]; then
+            elif [[ "${OPA_DENY_COUNT}" != "" && "${OPA_DENY_COUNT}" != "0" ]]; then
+              OPA_DISPLAY=":x: | opa policy check (${OPA_DENY_COUNT} denials)"
+            elif [[ "${OPA_WARN_COUNT}" != "" && "${OPA_WARN_COUNT}" != "0" ]]; then
               if [[ "${{ inputs.opa_fail_on_warn }}" == "true" ]]; then
-                OPA_DISPLAY=":x: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+                OPA_DISPLAY=":x: | opa policy check (${OPA_WARN_COUNT} warnings)"
               else
-                OPA_DISPLAY=":white_check_mark: | opa policy check (${{ env.OPA_WARN_COUNT }} warnings)"
+                OPA_DISPLAY=":white_check_mark: | opa policy check (${OPA_WARN_COUNT} warnings)"
               fi
-            elif [[ "${{ env.OPA_STATUS }}" == "success" ]]; then
+            elif [[ "${OPA_STATUS}" == "success" ]]; then
               OPA_DISPLAY=":white_check_mark: | opa policy check (passed)"
             else
               OPA_DISPLAY=":x: | opa policy check"
@@ -859,9 +955,9 @@ jobs:
             echo "| ${OPA_DISPLAY} |" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ inputs.enable_terraform_execution }}" == "true" ]]; then
-            if [[ "${{ env.TF_EXECUTION_TYPE }}" == "skip" ]]; then
+            if [[ "${TF_EXECUTION_TYPE}" == "skip" ]]; then
               echo '| :heavy_minus_sign: | terraform execution |' >> $GITHUB_STEP_SUMMARY
             else
-              echo '| ${{ env.TF_EXECUTION_RESULT }} | terraform ${{ env.TF_EXECUTION_TYPE }} |' >> $GITHUB_STEP_SUMMARY
+              echo "| ${TF_EXECUTION_RESULT} | terraform ${TF_EXECUTION_TYPE} |" >> $GITHUB_STEP_SUMMARY
             fi
           fi
