@@ -549,12 +549,6 @@ jobs:
               terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
             fi
           fi
-          # Only capture plan output for plan execution type (PRs)
-          if [[ "${{ steps.set_execution_type.outputs.type }}" == "plan" ]]; then
-            echo "PLAN_OUTPUT<<EOF" >> $GITHUB_ENV
-            cat plan_output.txt >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-          fi
         working-directory: ${{ inputs.terraform_working_directory }}
         continue-on-error: true
 
