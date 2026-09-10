@@ -359,7 +359,7 @@ jobs:
           fi
       
       - name: Run Trivy
-        uses: reviewdog/action-trivy@102f1eda529aaab3502cbef08bbb0050ee0b6b60 # v1
+        uses: reviewdog/action-trivy@aa68cc9532e944d1b1d91045a37405e46182dd2c # v1
         id: security
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
@@ -483,7 +483,7 @@ jobs:
           cli_config_credentials_token: ${{ secrets.TERRAFORM_REGISTRY_TOKEN }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: ${{ inputs.aws_oidc_role_arn }}
           role-session-name: GitHubActions-Terratest
